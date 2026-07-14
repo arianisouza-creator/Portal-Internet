@@ -17,10 +17,10 @@ streamlit run app.py
 
 ## Acesso protegido
 
-O portal agora exige login antes de abrir a interface.
+O portal abre normalmente na visao geral.
 
-- Em ambiente local, o padrao e `admin` / `mse123`.
-- No Streamlit Cloud, configure os secrets `portal_username` e `portal_password` para trocar essas credenciais.
+- As abas de cadastro protegidas usam `ADM` / `mse2026`.
+- A protecao fica nas areas de `Linhas Ativas e Acessos` e `Contratos`.
 
 ## Deploy no Streamlit Community Cloud
 

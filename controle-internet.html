@@ -69,6 +69,7 @@
     .topmenu{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:6px 0 18px}
     .toplink{padding:12px 16px;background:transparent;border:0;border-bottom:2px solid transparent;color:#456191;font-size:12px;font-weight:600}
     .toplink.on{color:var(--blue);border-bottom-color:var(--blue)}
+    .toplink.locked::after{content:'Protegido';margin-left:8px;font:600 9px "IBM Plex Mono",monospace;color:#c07a00;text-transform:uppercase}
     .search,.selectbox{height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;display:flex;align-items:center;gap:9px;padding:0 12px;box-shadow:var(--shadow)}
     .search input,.selectbox input,.selectbox select{border:0;background:transparent;width:100%;outline:0;color:var(--ink)}
     .ghost,.primary,.danger{min-height:42px;border-radius:12px;padding:0 14px;font-weight:700;border:0;display:flex;align-items:center;gap:8px;justify-content:center}
@@ -151,6 +152,11 @@
     .contract-stack{display:grid;gap:14px;margin-top:14px}
     .mini-form{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}
     .mini-form .primary{min-height:40px}
+    .auth-card{max-width:420px;margin:10px auto 0;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:22px}
+    .auth-card h3{margin:0 0 8px;color:#17356c;font-size:24px}
+    .auth-card p{margin:0 0 14px;color:#667085}
+    .auth-card .formgrid{grid-template-columns:1fr}
+    .auth-error{margin-top:12px;color:var(--red);font-size:12px}
     .modal{position:fixed;inset:0;background:rgba(22,36,60,.38);display:none;place-items:center;padding:20px;z-index:20}
     .modal.open{display:grid}
     .dialog{width:min(700px,100%);background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 18px 50px rgba(16,24,40,.18);padding:18px}
@@ -248,8 +254,8 @@
 
       <div class="topmenu">
         <button class="toplink on" data-view="overview">Visao Geral</button>
-        <button class="toplink" data-view="access">Linhas Ativas e Acessos</button>
-        <button class="toplink" data-view="contracts">Contratos</button>
+        <button class="toplink locked" data-view="access" data-protected="1">Linhas Ativas e Acessos</button>
+        <button class="toplink locked" data-view="contracts" data-protected="1">Contratos</button>
       </div>
 
       <div class="view on" id="view-overview">
@@ -376,42 +382,56 @@
       </div>
 
       <div class="view" id="view-access">
-        <div class="hero" style="margin-bottom:14px">
-          <h1>Linhas Ativas e Acessos</h1>
-          <p>Area protegida para credenciais, linhas e acessos operacionais do mes selecionado.</p>
+        <div id="accessContent" style="display:none">
+          <div class="hero" style="margin-bottom:14px">
+            <h1>Linhas Ativas e Acessos</h1>
+            <p>Area protegida para credenciais, linhas e acessos operacionais do mes selecionado.</p>
+          </div>
+          <div class="cred-grid">
+            <section class="card pad">
+              <div class="chead"><span class="ti2">Resumo das linhas ativas</span><span class="eyebrow" id="accessMonthLabel">Mes atual</span></div>
+              <div class="cred-list" id="activeSummary"></div>
+            </section>
+            <section class="card pad">
+              <div class="chead"><span class="ti2">Credenciais de acesso</span><span class="eyebrow">Protegido</span></div>
+              <div class="cred-list" id="credentialsList"></div>
+            </section>
+          </div>
         </div>
-        <div class="cred-grid">
-          <section class="card pad">
-            <div class="chead"><span class="ti2">Resumo das linhas ativas</span><span class="eyebrow" id="accessMonthLabel">Mes atual</span></div>
-            <div class="cred-list" id="activeSummary"></div>
-          </section>
-          <section class="card pad">
-            <div class="chead"><span class="ti2">Credenciais de acesso</span><span class="eyebrow">Protegido</span></div>
-            <div class="cred-list" id="credentialsList"></div>
-          </section>
+        <div class="auth-card" id="accessAuth">
+          <h3>Area protegida</h3>
+          <p>Entre com usuario e senha para acessar esta aba de cadastro.</p>
+          <form id="tabLoginForm" class="formgrid">
+            <label>Usuario<input name="tabUser" placeholder="ADM"></label>
+            <label>Senha<input name="tabPass" type="password" placeholder="mse2026"></label>
+            <button class="primary" type="submit">Entrar</button>
+          </form>
+          <div class="auth-error" id="tabAuthError" style="display:none">Usuario ou senha invalidos.</div>
         </div>
       </div>
 
       <div class="view" id="view-contracts">
-        <div class="hero" style="margin-bottom:14px">
-          <h1>Cadastro de Contratos</h1>
-          <p>Cadastre novas empresas e contratos uma vez. Depois o novo registro puxa obra, empresa, vencimento e numero do contrato automaticamente.</p>
-        </div>
-        <section class="card pad">
-          <div class="chead"><span class="ti2">Novo contrato</span><span class="eyebrow">Base mestre</span></div>
-          <form id="contractForm" class="mini-form">
-            <label>Empresa<input name="empresaContrato" required placeholder="Ex.: Vivo"></label>
-            <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede"></label>
-            <label>Vencimento<input name="vencimentoContrato" type="number" min="1" max="31" required placeholder="Dia do mes"></label>
-            <label>Numero do contrato<input name="numeroContrato" required placeholder="Ex.: 285704686"></label>
-            <button class="primary" type="submit"><span data-icon="plus"></span>Salvar</button>
-          </form>
-        </section>
-        <div class="contract-stack">
+        <div id="contractsContent" style="display:none">
+          <div class="hero" style="margin-bottom:14px">
+            <h1>Cadastro de Contratos</h1>
+            <p>Cadastre novas empresas e contratos uma vez. Depois o novo registro puxa obra, empresa, vencimento e numero do contrato automaticamente.</p>
+          </div>
           <section class="card pad">
-            <div class="chead"><span class="ti2">Contratos cadastrados</span><span class="eyebrow" id="contractCount">0 contratos</span></div>
-            <div class="cred-list" id="contractsList"></div>
+            <div class="chead"><span class="ti2">Novo contrato</span><span class="eyebrow">Base mestre</span></div>
+            <form id="contractForm" class="mini-form">
+              <label>Empresa<input name="empresaContrato" required placeholder="Ex.: Vivo"></label>
+              <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede"></label>
+              <label>Vencimento<input name="vencimentoContrato" type="number" min="1" max="31" required placeholder="Dia do mes"></label>
+              <label>Numero do contrato<input name="numeroContrato" required placeholder="Ex.: 285704686"></label>
+              <button class="primary" type="submit"><span data-icon="plus"></span>Salvar</button>
+            </form>
           </section>
+          <div class="contract-stack">
+            <section class="card pad">
+              <div class="chead"><span class="ti2">Contratos cadastrados</span><span class="eyebrow" id="contractCount">0 contratos</span></div>
+              <div class="cred-list" id="contractsList"></div>
+            </section>
+          </div>
         </div>
       </div>
     </main>
@@ -522,18 +542,36 @@
     document.getElementById('adminToggle').addEventListener('click', () => {
       document.getElementById('adminBlock').classList.toggle('open');
     });
+    function openView(viewName) {
+      document.querySelectorAll('.toplink').forEach(item => item.classList.remove('on'));
+      document.querySelectorAll('.view').forEach(view => view.classList.remove('on'));
+      document.querySelector(`.toplink[data-view="${viewName}"]`).classList.add('on');
+      document.getElementById(`view-${viewName}`).classList.add('on');
+    }
+    function refreshProtectedViews() {
+      document.getElementById('accessAuth').style.display = protectedAuthenticated ? 'none' : 'block';
+      document.getElementById('accessContent').style.display = protectedAuthenticated ? 'block' : 'none';
+      document.getElementById('contractsContent').style.display = protectedAuthenticated ? 'block' : 'none';
+    }
     document.querySelectorAll('.toplink').forEach(button => {
       button.addEventListener('click', () => {
-        document.querySelectorAll('.toplink').forEach(item => item.classList.remove('on'));
-        document.querySelectorAll('.view').forEach(view => view.classList.remove('on'));
-        button.classList.add('on');
-        document.getElementById(`view-${button.dataset.view}`).classList.add('on');
+        if (button.dataset.protected === '1' && !protectedAuthenticated) {
+          openView('access');
+          refreshProtectedViews();
+          document.getElementById('tabAuthError').style.display = 'none';
+          return;
+        }
+        openView(button.dataset.view);
+        refreshProtectedViews();
       });
     });
 
     let filter = 'todos';
     let selectedId = null;
     let editingId = null;
+    let protectedAuthenticated = false;
+    const PROTECTED_USER = 'ADM';
+    const PROTECTED_PASS = 'mse2026';
     const monthPicker = document.getElementById('monthPicker');
     const dataByMonth = {};
     const contracts = [];
@@ -883,6 +921,20 @@
       render();
     });
 
+    document.getElementById('tabLoginForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      if (formData.tabUser === PROTECTED_USER && formData.tabPass === PROTECTED_PASS) {
+        protectedAuthenticated = true;
+        document.getElementById('tabAuthError').style.display = 'none';
+        event.currentTarget.reset();
+        refreshProtectedViews();
+        openView('access');
+        return;
+      }
+      document.getElementById('tabAuthError').style.display = 'block';
+    });
+
     document.querySelectorAll('.seg button').forEach(button => {
       button.addEventListener('click', () => {
         document.querySelectorAll('.seg button').forEach(item => item.classList.remove('on'));
@@ -973,6 +1025,8 @@
       render();
     });
 
+    refreshProtectedViews();
+    openView('overview');
     render();
   </script>
 </body>
