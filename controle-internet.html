@@ -57,7 +57,7 @@
     .navblock.open .chev{transform:rotate(90deg)}
     .navblock:not(.open) .navtree{display:none}
     .navtree{padding:8px 0 0 8px;border-left:1px solid rgba(255,255,255,.14);margin:8px 0 0 10px}
-    .subitem{height:34px;display:flex;align-items:center;padding:0 12px;border-radius:10px;color:rgba(255,255,255,.76);font-size:13px}
+    .subitem{width:100%;height:34px;display:flex;align-items:center;padding:0 12px;border-radius:10px;color:rgba(255,255,255,.76);font-size:13px;border:0;background:transparent;text-align:left;cursor:pointer}
     .subitem.on{background:rgba(255,255,255,.12);color:#fff;font-weight:700}
     .main{min-width:0}
     .subrow2{display:flex;align-items:center;gap:10px;margin-bottom:18px}
@@ -141,6 +141,8 @@
     .table-foot{padding:12px 16px;color:var(--mut);font-size:10px;text-transform:uppercase}
     .view{display:none}
     .view.on{display:block}
+    .module{display:none}
+    .module.on{display:block}
     .cred-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     .cred-list{display:grid;gap:12px}
     .cred-item{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
@@ -233,12 +235,14 @@
           <span class="chev" data-icon="chevronRight"></span>
         </button>
         <div class="navtree">
-          <div class="subitem on">Controle de Internet</div>
+          <button class="subitem on" id="navInternet" type="button">Controle de Internet</button>
+          <button class="subitem" id="navDiarista" type="button">Controle da Diarista</button>
         </div>
       </div>
     </aside>
 
     <main class="main">
+      <section class="module on" id="moduleInternet">
       <div class="subrow2">
         <button class="sidetoggle" id="sideToggle" title="Recolher menu" aria-label="Recolher menu" data-icon="menu"></button>
         <span class="ico" data-icon="wifi"></span>
@@ -462,6 +466,124 @@
           </div>
         </div>
       </div>
+      </section>
+
+      <section class="module" id="moduleDiarista">
+        <div class="subrow2">
+          <button class="sidetoggle" type="button" title="Recolher menu" aria-label="Recolher menu" data-icon="menu"></button>
+          <span class="ico" data-icon="briefcase"></span>
+          <span class="lab">
+            <b>Controle da Diarista</b>
+            <small>Controle mensal operacional</small>
+          </span>
+        </div>
+
+        <div class="monthbar">
+          <div class="search"><span data-icon="search"></span><input id="dq" placeholder="Buscar por obra ou nome..."></div>
+          <div class="selectbox"><span data-icon="calendar"></span><input id="dMonthMirror" type="month" disabled></div>
+          <button class="danger" id="resetDiarista"><span data-icon="trash"></span>Zerar mes</button>
+          <button class="ghost" id="openDiaristaCadastro"><span data-icon="lock"></span>Cadastro</button>
+        </div>
+
+        <div class="topmenu">
+          <button class="toplink on" data-d-view="overview">Visao Geral</button>
+          <button class="toplink locked" data-d-view="cadastro" data-protected="1">Cadastro</button>
+        </div>
+
+        <div class="view on" id="dview-overview">
+          <div class="hero">
+            <h1 id="dPageTitle">Controle da Diarista</h1>
+            <p id="dPageSubtitle">As obras ativas do mes aparecem automaticamente. Complete pedido, valor e protocolo.</p>
+          </div>
+
+          <section class="kpis" style="grid-template-columns:repeat(4,1fr)">
+            <div class="kpi">
+              <div class="ktop"><div class="kicon blue" data-icon="briefcase"></div><div class="klabel">Obras ativas</div></div>
+              <div class="kvalue" id="dActive">0</div>
+              <div class="kmeta">Cadastros ativos no mes</div>
+            </div>
+            <div class="kpi">
+              <div class="ktop"><div class="kicon green" data-icon="dollar"></div><div class="klabel">Valor mensal</div></div>
+              <div class="kvalue" id="dCost">R$ 0,00</div>
+              <div class="kmeta">Total registrado</div>
+            </div>
+            <div class="kpi">
+              <div class="ktop"><div class="kicon blue" data-icon="clipboard"></div><div class="klabel">Pedidos preenchidos</div></div>
+              <div class="kvalue" id="dOrders">0</div>
+              <div class="kmeta">Com pedido informado</div>
+            </div>
+            <div class="kpi">
+              <div class="ktop"><div class="kicon slate" data-icon="shield"></div><div class="klabel">Protocolados</div></div>
+              <div class="kvalue" id="dProtocolado">0</div>
+              <div class="kmeta">Protocolado = sim</div>
+            </div>
+          </section>
+
+          <section class="card table-card">
+            <div class="pad">
+              <div class="chead"><span class="ti2">Diarista do mes</span><span class="eyebrow" id="dCountLabel">0 registros</span></div>
+            </div>
+            <div style="overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Obra</th>
+                    <th>Nome</th>
+                    <th>Pedido</th>
+                    <th>Valor</th>
+                    <th>Protocolado</th>
+                    <th>Link</th>
+                    <th>Acoes</th>
+                  </tr>
+                </thead>
+                <tbody id="dRows"></tbody>
+              </table>
+            </div>
+            <div class="table-foot">Linhas do mes selecionado: <span id="dFootCount">0</span></div>
+          </section>
+        </div>
+
+        <div class="view" id="dview-cadastro">
+          <div id="dCadastroContent" style="display:none">
+            <div class="hero" style="margin-bottom:14px">
+              <h1>Cadastro da Diarista</h1>
+              <p>Cadastre obra e nome uma vez. O sistema traz automaticamente os ativos de cada mes.</p>
+            </div>
+            <section class="card pad">
+              <div class="chead"><span class="ti2">Novo cadastro</span><span class="eyebrow">Base mestre</span></div>
+              <form id="diaristaForm" class="mini-form">
+                <label>Obra<input name="obraDiarista" required placeholder="Ex.: FITESA"></label>
+                <label>Nome<input name="nomeDiarista" required placeholder="Nome da diarista"></label>
+                <label>Status
+                  <select name="statusDiarista">
+                    <option value="Ativo">Ativo</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
+                </label>
+                <label>Mes de inicio<input name="inicioDiarista" type="month" required></label>
+                <label>Mes/ano inativo<input name="fimDiarista" type="month"></label>
+                <div style="grid-column:1 / -1;display:flex;justify-content:flex-end">
+                  <button class="primary" type="submit"><span data-icon="plus"></span>Salvar cadastro</button>
+                </div>
+              </form>
+            </section>
+            <section class="card pad" style="margin-top:14px">
+              <div class="chead"><span class="ti2">Cadastros salvos</span><span class="eyebrow" id="dCadastroCount">0 cadastros</span></div>
+              <div class="cred-list" id="dCadastroList"></div>
+            </section>
+          </div>
+          <div class="auth-card" id="dCadastroAuth">
+            <h3>Area protegida</h3>
+            <p>Entre com usuario e senha para acessar esta aba de cadastro.</p>
+            <form id="dTabLoginForm" class="formgrid">
+              <label>Usuario<input name="tabUser" autocomplete="username"></label>
+              <label>Senha<input name="tabPass" type="password" autocomplete="current-password"></label>
+              <button class="primary" type="submit">Entrar</button>
+            </form>
+            <div class="auth-error" id="dTabAuthError" style="display:none">Usuario ou senha invalidos.</div>
+          </div>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -521,6 +643,35 @@
     </div>
   </div>
 
+  <div class="modal" id="diaristaModal" role="dialog" aria-modal="true" aria-labelledby="diaristaModalTitle">
+    <div class="dialog">
+      <div class="chead">
+        <span class="ti2" id="diaristaModalTitle">Atualizar diarista do mes</span>
+        <button class="rowact" id="closeDiaristaModal" title="Fechar" aria-label="Fechar" data-icon="close"></button>
+      </div>
+      <form id="diaristaMonthForm">
+        <div class="formgrid">
+          <label>Obra<input name="obra" readonly></label>
+          <label>Nome<input name="nome" readonly></label>
+          <label>Pedido<input name="pedido" placeholder="Ex.: 4900"></label>
+          <label>Valor<input name="valor" placeholder="Ex.: 920,00"></label>
+          <label>Protocolado
+            <select name="protocolado">
+              <option value="">Pendente</option>
+              <option value="sim">Sim</option>
+              <option value="nao">Nao</option>
+            </select>
+          </label>
+          <label>Link<input name="link" placeholder="Ex.: link do protocolo"></label>
+        </div>
+        <footer>
+          <button type="button" class="ghost" id="cancelDiaristaModal">Cancelar</button>
+          <button type="submit" class="primary"><span data-icon="save"></span>Salvar registro</button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
   <script>
     const ICONS = {
       bell:'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
@@ -565,24 +716,42 @@
     setInterval(tick, 1000);
     tick();
 
-    document.getElementById('sideToggle').addEventListener('click', () => {
-      document.querySelector('.shell').classList.toggle('side-closed');
+    document.querySelectorAll('.sidetoggle').forEach(button => {
+      button.addEventListener('click', () => {
+        document.querySelector('.shell').classList.toggle('side-closed');
+      });
     });
     document.getElementById('adminToggle').addEventListener('click', () => {
       document.getElementById('adminBlock').classList.toggle('open');
     });
     function openView(viewName) {
-      document.querySelectorAll('.toplink').forEach(item => item.classList.remove('on'));
-      document.querySelectorAll('.view').forEach(view => view.classList.remove('on'));
+      document.querySelectorAll('.toplink[data-view]').forEach(item => item.classList.remove('on'));
+      document.querySelectorAll('#moduleInternet .view').forEach(view => view.classList.remove('on'));
       document.querySelector(`.toplink[data-view="${viewName}"]`).classList.add('on');
       document.getElementById(`view-${viewName}`).classList.add('on');
+    }
+    function openDiaristaView(viewName) {
+      document.querySelectorAll('.toplink[data-d-view]').forEach(item => item.classList.remove('on'));
+      document.querySelectorAll('#moduleDiarista .view').forEach(view => view.classList.remove('on'));
+      document.querySelector(`.toplink[data-d-view="${viewName}"]`).classList.add('on');
+      document.getElementById(`dview-${viewName}`).classList.add('on');
+    }
+    function switchModule(moduleName) {
+      currentModule = moduleName;
+      document.getElementById('moduleInternet').classList.toggle('on', moduleName === 'internet');
+      document.getElementById('moduleDiarista').classList.toggle('on', moduleName === 'diarista');
+      document.getElementById('navInternet').classList.toggle('on', moduleName === 'internet');
+      document.getElementById('navDiarista').classList.toggle('on', moduleName === 'diarista');
+      document.getElementById('dMonthMirror').value = currentMonthKey();
     }
     function refreshProtectedViews() {
       document.getElementById('accessAuth').style.display = protectedAuthenticated ? 'none' : 'block';
       document.getElementById('accessContent').style.display = protectedAuthenticated ? 'block' : 'none';
       document.getElementById('contractsContent').style.display = protectedAuthenticated ? 'block' : 'none';
+      document.getElementById('dCadastroAuth').style.display = protectedAuthenticated ? 'none' : 'block';
+      document.getElementById('dCadastroContent').style.display = protectedAuthenticated ? 'block' : 'none';
     }
-    document.querySelectorAll('.toplink').forEach(button => {
+    document.querySelectorAll('.toplink[data-view]').forEach(button => {
       button.addEventListener('click', () => {
         if (button.dataset.protected === '1' && !protectedAuthenticated) {
           openView('access');
@@ -599,13 +768,18 @@
     let selectedId = null;
     let editingId = null;
     let editingContractId = null;
+    let editingDiaristaId = null;
+    let editingDiaristaMasterId = null;
     let protectedAuthenticated = false;
+    let currentModule = 'internet';
     const PROTECTED_USER = 'ADM';
     const PROTECTED_PASS = 'mse2026';
     const monthPicker = document.getElementById('monthPicker');
     const monthOverrides = {};
     const monthLines = {};
     const contracts = [];
+    const diaristaMasters = [];
+    const diaristaMonthOverrides = {};
 
     function defaultMonth() {
       const now = new Date();
@@ -624,6 +798,11 @@
     function ensureMonthLines(monthKey) {
       if (!monthLines[monthKey]) monthLines[monthKey] = [];
       return monthLines[monthKey];
+    }
+
+    function ensureDiaristaMonth(monthKey) {
+      if (!diaristaMonthOverrides[monthKey]) diaristaMonthOverrides[monthKey] = {};
+      return diaristaMonthOverrides[monthKey];
     }
 
     function currentMonthKey() {
@@ -662,10 +841,36 @@
       };
     }
 
+    function diaristaVisible(item, monthKey) {
+      const current = monthIndex(monthKey);
+      const start = monthIndex(item.inicioDiarista);
+      const end = item.fimDiarista ? monthIndex(item.fimDiarista) : null;
+      return current >= start && (end == null || current < end);
+    }
+
+    function buildDiaristaMonthRow(item, monthKey) {
+      const override = ensureDiaristaMonth(monthKey)[item.id] || {};
+      return {
+        id: item.id,
+        obra: item.obraDiarista,
+        nome: item.nomeDiarista,
+        pedido: override.pedido || '',
+        valor: Object.prototype.hasOwnProperty.call(override, 'valor') ? override.valor : null,
+        protocolado: Object.prototype.hasOwnProperty.call(override, 'protocolado') ? override.protocolado : '',
+        link: override.link || ''
+      };
+    }
+
     function currentData() {
       return contracts
         .filter(contract => contractIsVisible(contract, currentMonthKey()))
         .map(contract => buildMonthRow(contract, currentMonthKey()));
+    }
+
+    function currentDiaristaData() {
+      return diaristaMasters
+        .filter(item => diaristaVisible(item, currentMonthKey()))
+        .map(item => buildDiaristaMonthRow(item, currentMonthKey()));
     }
 
     function contractLabel(contract) {
@@ -973,6 +1178,65 @@
       `;
     }
 
+    function renderDiarista() {
+      const rows = currentDiaristaData().filter(row => {
+        const q = norm(document.getElementById('dq').value);
+        if (!q) return true;
+        return norm([row.obra, row.nome, row.pedido, row.link].join(' ')).includes(q);
+      });
+      const allRows = currentDiaristaData();
+      const totalValue = allRows.reduce((sum, row) => sum + (row.valor || 0), 0);
+      const protocolados = allRows.filter(row => row.protocolado === 'sim').length;
+      const pedidos = allRows.filter(row => row.pedido).length;
+      document.getElementById('dMonthMirror').value = currentMonthKey();
+      document.getElementById('dPageTitle').textContent = `Controle da Diarista | ${monthLabel(currentMonthKey())}`;
+      document.getElementById('dPageSubtitle').textContent = `Cadastros ativos do mes: ${allRows.length}. Complete pedido, valor e protocolo.`;
+      document.getElementById('dActive').textContent = allRows.length;
+      document.getElementById('dCost').textContent = brl(totalValue);
+      document.getElementById('dOrders').textContent = pedidos;
+      document.getElementById('dProtocolado').textContent = protocolados;
+      document.getElementById('dCountLabel').textContent = `${allRows.length} registros no mes`;
+      document.getElementById('dFootCount').textContent = allRows.length;
+
+      const body = document.getElementById('dRows');
+      if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><b>Mes sem diaristas ativas.</b>Use o cadastro protegido para incluir obra e nome.</div></td></tr>`;
+      } else {
+        body.innerHTML = rows.map(row => `
+          <tr>
+            <td><b class="link">${row.obra || '-'}</b></td>
+            <td><span class="company">${row.nome || '-'}</span></td>
+            <td><span class="${!row.pedido ? 'pending' : ''}">${row.pedido || 'Pendente'}</span></td>
+            <td><span class="${row.valor == null ? 'pending' : 'money'}">${row.valor != null ? brl(row.valor) : 'Pendente'}</span></td>
+            <td><span class="${!row.protocolado ? 'pending' : ''}">${row.protocolado ? row.protocolado.toUpperCase() : 'Pendente'}</span></td>
+            <td>${row.link || 'Pendente'}</td>
+            <td class="actioncell">
+              <button class="rowact" title="Editar diarista" aria-label="Editar diarista" onclick="editDiaristaMonth(${row.id})">${icon('edit')}</button>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      const list = document.getElementById('dCadastroList');
+      document.getElementById('dCadastroCount').textContent = `${diaristaMasters.length} cadastro${diaristaMasters.length === 1 ? '' : 's'}`;
+      if (!diaristaMasters.length) {
+        list.innerHTML = `<div class="empty-state"><b>Nenhum cadastro salvo.</b>Inclua obra e nome para montar o mes automaticamente.</div>`;
+      } else {
+        list.innerHTML = diaristaMasters.map(item => `
+          <div class="cred-item">
+            <h4>${item.obraDiarista}</h4>
+            <div class="cred-row"><span>Nome</span><b>${item.nomeDiarista}</b></div>
+            <div class="cred-row"><span>Status</span><b>${item.statusDiarista}</b></div>
+            <div class="cred-row"><span>Inicio</span><b>${monthLabel(item.inicioDiarista)}</b></div>
+            <div class="cred-row"><span>Inativo em</span><b>${item.fimDiarista ? monthLabel(item.fimDiarista) : '-'}</b></div>
+            <div style="margin-top:10px;display:flex;justify-content:flex-end">
+              <button class="inline-btn" type="button" onclick="editDiaristaCadastro(${item.id})">Editar cadastro</button>
+            </div>
+          </div>
+        `).join('');
+      }
+    }
+
     function selectRow(id) {
       selectedId = id;
       const row = currentData().find(item => item.id === id);
@@ -998,6 +1262,37 @@
       openView('contracts');
     }
     window.editContract = editContract;
+
+    function editDiaristaCadastro(id) {
+      const item = diaristaMasters.find(entry => entry.id === id);
+      if (!item) return;
+      editingDiaristaMasterId = id;
+      const form = document.getElementById('diaristaForm');
+      form.elements.obraDiarista.value = item.obraDiarista || '';
+      form.elements.nomeDiarista.value = item.nomeDiarista || '';
+      form.elements.statusDiarista.value = item.statusDiarista || 'Ativo';
+      form.elements.inicioDiarista.value = item.inicioDiarista || '';
+      form.elements.fimDiarista.value = item.fimDiarista || '';
+      switchModule('diarista');
+      openDiaristaView('cadastro');
+      refreshProtectedViews();
+    }
+    window.editDiaristaCadastro = editDiaristaCadastro;
+
+    function editDiaristaMonth(id) {
+      const row = currentDiaristaData().find(entry => entry.id === id);
+      if (!row) return;
+      editingDiaristaId = id;
+      const form = document.getElementById('diaristaMonthForm');
+      form.elements.obra.value = row.obra || '';
+      form.elements.nome.value = row.nome || '';
+      form.elements.pedido.value = row.pedido || '';
+      form.elements.valor.value = row.valor != null ? String(row.valor).replace('.', ',') : '';
+      form.elements.protocolado.value = row.protocolado || '';
+      form.elements.link.value = row.link || '';
+      document.getElementById('diaristaModal').classList.add('open');
+    }
+    window.editDiaristaMonth = editDiaristaMonth;
 
     function render() {
       ensureMonth(currentMonthKey());
@@ -1035,7 +1330,9 @@
     monthPicker.addEventListener('change', () => {
       selectedId = null;
       render();
+      renderDiarista();
     });
+    document.getElementById('dq').addEventListener('input', renderDiarista);
 
     document.getElementById('tabLoginForm').addEventListener('submit', event => {
       event.preventDefault();
@@ -1049,6 +1346,19 @@
         return;
       }
       document.getElementById('tabAuthError').style.display = 'block';
+    });
+    document.getElementById('dTabLoginForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      if (formData.tabUser === PROTECTED_USER && formData.tabPass === PROTECTED_PASS) {
+        protectedAuthenticated = true;
+        document.getElementById('dTabAuthError').style.display = 'none';
+        event.currentTarget.reset();
+        refreshProtectedViews();
+        openDiaristaView('cadastro');
+        return;
+      }
+      document.getElementById('dTabAuthError').style.display = 'block';
     });
 
     document.querySelectorAll('.seg button').forEach(button => {
@@ -1091,6 +1401,13 @@
       monthLines[currentMonthKey()] = [];
       selectedId = null;
       render();
+      renderDiarista();
+    });
+    document.getElementById('resetDiarista').addEventListener('click', () => {
+      const label = monthLabel(currentMonthKey());
+      if (!window.confirm(`Deseja zerar os registros da diarista do mes ${label}?`)) return;
+      diaristaMonthOverrides[currentMonthKey()] = {};
+      renderDiarista();
     });
 
     document.getElementById('contractForm').addEventListener('submit', event => {
@@ -1118,6 +1435,28 @@
       event.currentTarget.reset();
       renderContracts();
       render();
+    });
+
+    document.getElementById('diaristaForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const payload = {
+        id: editingDiaristaMasterId || Date.now(),
+        obraDiarista: formData.obraDiarista,
+        nomeDiarista: formData.nomeDiarista,
+        statusDiarista: formData.statusDiarista,
+        inicioDiarista: formData.inicioDiarista,
+        fimDiarista: formData.fimDiarista || ''
+      };
+      if (editingDiaristaMasterId) {
+        const index = diaristaMasters.findIndex(item => item.id === editingDiaristaMasterId);
+        if (index >= 0) diaristaMasters[index] = payload;
+      } else {
+        diaristaMasters.push(payload);
+      }
+      editingDiaristaMasterId = null;
+      event.currentTarget.reset();
+      renderDiarista();
     });
 
     document.getElementById('form').addEventListener('submit', event => {
@@ -1182,9 +1521,53 @@
       render();
     });
 
+    const diaristaModal = document.getElementById('diaristaModal');
+    function closeDiaristaModal() {
+      diaristaModal.classList.remove('open');
+      editingDiaristaId = null;
+      document.getElementById('diaristaMonthForm').reset();
+    }
+    document.getElementById('closeDiaristaModal').addEventListener('click', closeDiaristaModal);
+    document.getElementById('cancelDiaristaModal').addEventListener('click', closeDiaristaModal);
+    document.getElementById('openDiaristaCadastro').addEventListener('click', () => {
+      switchModule('diarista');
+      openDiaristaView('cadastro');
+      refreshProtectedViews();
+    });
+    document.querySelectorAll('.toplink[data-d-view]').forEach(button => {
+      button.addEventListener('click', () => {
+        if (button.dataset.protected === '1' && !protectedAuthenticated) {
+          openDiaristaView('cadastro');
+          refreshProtectedViews();
+          document.getElementById('dTabAuthError').style.display = 'none';
+          return;
+        }
+        openDiaristaView(button.dataset.dView);
+        refreshProtectedViews();
+      });
+    });
+    document.getElementById('diaristaMonthForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const value = formData.valor ? Number(formData.valor.replace(/\./g, '').replace(',', '.')) : null;
+      ensureDiaristaMonth(currentMonthKey())[editingDiaristaId] = {
+        pedido: formData.pedido || '',
+        valor: Number.isFinite(value) ? value : null,
+        protocolado: formData.protocolado || '',
+        link: formData.link || ''
+      };
+      closeDiaristaModal();
+      renderDiarista();
+    });
+    document.getElementById('navInternet').addEventListener('click', () => switchModule('internet'));
+    document.getElementById('navDiarista').addEventListener('click', () => switchModule('diarista'));
+
     refreshProtectedViews();
     openView('overview');
     render();
+    openDiaristaView('overview');
+    renderDiarista();
+    switchModule('internet');
   </script>
 </body>
 </html>
