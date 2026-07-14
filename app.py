@@ -411,13 +411,8 @@ def empty_state(message: str) -> None:
 
 
 def render_sidebar(selected_month: str) -> str:
-    st.markdown(
-        """
-        <div class="nav-top-icon">&laquo;</div>
-        <div class="nav-brand">Portal MSE</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.markdown('<div class="nav-top-icon">&laquo;</div>', unsafe_allow_html=True)
+    st.markdown('<div class="nav-brand">Portal MSE</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="nav-month">Mes ativo: {month_label(selected_month)}</div>', unsafe_allow_html=True)
     st.markdown('<div class="nav-card-title">Administrativo</div>', unsafe_allow_html=True)
     page = st.radio(
@@ -795,7 +790,6 @@ def main() -> None:
           }
           .main-left-col {
             background:linear-gradient(180deg,#213f76 0%,#2a4a84 100%);
-            border-radius:0;
             padding:22px 20px 26px;
             min-height:calc(100vh - 24px);
           }
@@ -817,7 +811,7 @@ def main() -> None:
           }
           .hero-shell {
             background: radial-gradient(640px 360px at 85% -30%, rgba(64,120,210,.5), transparent 62%), linear-gradient(118deg,#13223b,#193053 68%,#1f3a63);
-            padding:28px 28px 30px;
+            padding:24px 28px 36px;
             margin-bottom:0;
           }
           .content-shell {
@@ -840,11 +834,11 @@ def main() -> None:
           }
           .hero-header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; }
           .page-title {
-            font-size:54px;
+            font-size:52px;
             line-height:1;
             font-weight:800;
             color:#f3f6fb;
-            margin:38px 0 10px;
+            margin:18px 0 10px;
           }
           .page-subtitle {
             font-size:32px;
@@ -919,23 +913,23 @@ def main() -> None:
           }
           [data-testid="column"] { position:relative; min-width:0; }
           .nav-top-icon {
-            text-align:right;
+            text-align:center;
             font-size:34px;
             line-height:1;
             color:#ffffff;
             font-weight:800;
-            margin-bottom:56px;
+            margin-bottom:46px;
           }
           .nav-brand {
             color:#ffffff;
-            font-size:28px;
+            font-size:24px;
             font-weight:800;
-            margin-bottom:18px;
+            margin-bottom:16px;
           }
           .nav-month {
             color:rgba(255,255,255,.78);
             font-size:14px;
-            margin-bottom:24px;
+            margin-bottom:20px;
           }
           .nav-card-title {
             background:#1f232d;
@@ -954,13 +948,17 @@ def main() -> None:
             padding:16px 14px;
           }
           .stRadio label {
-            padding:10px 8px;
+            padding:10px 12px;
             border-radius:10px;
           }
           .stRadio label:hover { background:rgba(255,255,255,.05); }
           .stRadio p {
             color:#ffffff !important;
             letter-spacing:1.6px !important;
+          }
+          .stRadio [data-checked="true"] {
+            background:rgba(255,255,255,.08);
+            border-radius:10px;
           }
           .nav-button .stButton button {
             margin-top:14px;
@@ -972,6 +970,9 @@ def main() -> None:
             color:rgba(255,255,255,.68);
             font-size:14px;
             margin-top:14px;
+          }
+          .hero-right-copy {
+            padding-left:8px;
           }
           .overview-table-head {
             font-family:"IBM Plex Mono", monospace;
@@ -999,32 +1000,30 @@ def main() -> None:
     selected_month = st.session_state.get("selected_month", month_key())
 
     with left_col:
-        st.markdown('<div class="main-left-col">', unsafe_allow_html=True)
+        st.markdown('<div class="main-left-col"></div>', unsafe_allow_html=True)
         page = render_sidebar(selected_month)
-        st.markdown('<div class="nav-button">', unsafe_allow_html=True)
+        st.markdown('<div class="nav-button"></div>', unsafe_allow_html=True)
         if auth_ok():
             st.button("Sair do cadastro", on_click=logout, use_container_width=True, key="logout_main_nav_bottom")
-        st.markdown('</div></div>', unsafe_allow_html=True)
 
     with right_col:
         st.markdown('<div class="top-shell"><span>Share &nbsp;&nbsp; ☆ &nbsp;&nbsp; ✎ &nbsp;&nbsp; GitHub</span></div>', unsafe_allow_html=True)
-        st.markdown('<div class="hero-shell">', unsafe_allow_html=True)
+        st.markdown('<div class="hero-shell"></div>', unsafe_allow_html=True)
         hero_cols = st.columns([1.15, 3.85], gap="large")
         with hero_cols[0]:
-            st.markdown('<div class="month-shell">', unsafe_allow_html=True)
+            st.markdown('<div class="month-shell"></div>', unsafe_allow_html=True)
             selected_month = month_picker(
                 "Mes de referencia",
                 key="selected_month_picker",
                 value=st.session_state.get("selected_month", month_key()),
             )
-            st.markdown('</div>', unsafe_allow_html=True)
         st.session_state["selected_month"] = selected_month
         with hero_cols[1]:
+            st.markdown('<div class="hero-right-copy"></div>', unsafe_allow_html=True)
             st.markdown('<div class="page-title">Controle de Internet</div>', unsafe_allow_html=True)
             st.markdown('<div class="page-subtitle dark">Painel Administrativo MSE</div>', unsafe_allow_html=True)
             st.markdown('<div class="page-caption dark">Acompanhamento mensal de contratos, linhas ativas e credenciais.</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('<div class="content-shell">', unsafe_allow_html=True)
+        st.markdown('<div class="content-shell"></div>', unsafe_allow_html=True)
 
         if page == "Visao Geral":
             render_overview(selected_month)
@@ -1034,8 +1033,6 @@ def main() -> None:
                     render_lines_page(selected_month)
                 else:
                     render_contracts_page(selected_month)
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
