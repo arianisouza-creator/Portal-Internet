@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+
+# Arquivos de entrada com dados sensiveis
+Fatura.pdf
+Info.pdf
+
+# Relatorios gerados
+Resultado_Final.pdf
+Resultado_Final.xlsx
+Resultado_Final.csv
+
+# Ambientes virtuais
+.venv/
+venv/
+env/
+
+# Configuracoes locais
+.env
+.vscode/
+.idea/
