@@ -400,10 +400,17 @@
             <form id="activeLinesForm" class="mini-form">
               <label>Numero<input name="numeroLinha" required placeholder="43 99999-0000"></label>
               <label>Responsavel<input name="responsavelLinha" required placeholder="Nome"></label>
+              <label>Status
+                <select name="statusLinha">
+                  <option value="Ativo">Ativo</option>
+                  <option value="Inativo">Inativo</option>
+                </select>
+              </label>
               <label>Centro de custo<input name="centroLinha" required placeholder="ADM, MKT, DTE"></label>
               <label>Percentual<input name="percentualLinha" readonly placeholder="Automatico"></label>
-              <div style="grid-column:1 / -1;display:flex;justify-content:flex-end">
-                <button class="primary" type="submit"><span data-icon="plus"></span>Adicionar linha</button>
+              <div style="grid-column:1 / -1;display:flex;justify-content:flex-end;gap:10px">
+                <button class="ghost" type="button" id="cancelLineEdit" style="display:none">Cancelar edicao</button>
+                <button class="primary" type="submit" id="saveLineBtn"><span data-icon="plus"></span>Adicionar linha</button>
               </div>
             </form>
           </section>
@@ -770,6 +777,7 @@
     let editingContractId = null;
     let editingDiaristaId = null;
     let editingDiaristaMasterId = null;
+    let editingLineId = null;
     let protectedAuthenticated = false;
     let currentModule = 'internet';
     const PROTECTED_USER = 'ADM';
@@ -840,6 +848,7 @@
             month_key: monthKey,
             numero: line.numero || '',
             responsavel: line.responsavel || '',
+            status: line.status || 'Ativo',
             centro_custo: line.centroCusto || '',
             percentual: line.percentual || ''
           }))
@@ -892,6 +901,7 @@
           id: Number(entry.id),
           numero: entry.numero || '',
           responsavel: entry.responsavel || '',
+          status: entry.status || 'Ativo',
           centroCusto: entry.centroCusto ?? entry.centro_custo ?? '',
           percentual: entry.percentual != null ? String(entry.percentual) : ''
         });
@@ -1047,10 +1057,17 @@
           month_key: monthKey,
           numero: line.numero || '',
           responsavel: line.responsavel || '',
+          status: line.status || 'Ativo',
           centro_custo: line.centroCusto || '',
           percentual: line.percentual || ''
         }]
       });
+    }
+
+    async function syncMonthLinesRemote(monthKey) {
+      if (!REMOTE_ENABLED) return;
+      const lines = recalculateLinePercentages(monthKey);
+      await Promise.all(lines.map(line => upsertLineRemote(monthKey, line)));
     }
 
     async function upsertDiaristaMasterRemote(item) {
@@ -1186,10 +1203,90 @@
       return (value || '').split(',').map(item => item.trim()).filter(Boolean).length;
     }
 
+    function normalizeCenters(value) {
+      return (value || '')
+        .split(/[;,]/)
+        .map(item => item.trim())
+        .filter(Boolean);
+    }
+
     function linePercent(value) {
       const count = centerCount(value);
       if (!count) return '';
       return (100 / count).toFixed(count > 2 ? 2 : 0);
+    }
+
+    function formatPercentNumber(value) {
+      if (!Number.isFinite(value)) return '';
+      const rounded = Math.round(value);
+      if (Math.abs(value - rounded) < 0.001) return String(rounded);
+      return value.toFixed(2).replace('.', ',');
+    }
+
+    function recalculateLinePercentages(monthKey) {
+      const lines = ensureMonthLines(monthKey);
+      const counts = {};
+      lines
+        .filter(line => (line.status || 'Ativo') === 'Ativo')
+        .forEach(line => {
+          normalizeCenters(line.centroCusto).forEach(center => {
+            const key = norm(center);
+            counts[key] = (counts[key] || 0) + 1;
+          });
+        });
+
+      lines.forEach(line => {
+        if ((line.status || 'Ativo') !== 'Ativo') {
+          line.percentual = 'Inativa';
+          return;
+        }
+        const centers = normalizeCenters(line.centroCusto);
+        if (!centers.length) {
+          line.percentual = '';
+          return;
+        }
+        const labels = centers.map(center => {
+          const total = counts[norm(center)] || 1;
+          const pct = formatPercentNumber(100 / total);
+          return centers.length === 1 ? `${pct}% por C.C` : `${center}: ${pct}%`;
+        });
+        line.percentual = labels.join(' | ');
+      });
+
+      return lines;
+    }
+
+    function previewLinePercent(centerValue, statusValue, lineId = null) {
+      if (statusValue === 'Inativo') return 'Inativa';
+      const draft = ensureMonthLines(currentMonthKey())
+        .filter(line => line.id !== lineId)
+        .map(line => ({ ...line }));
+      draft.push({
+        id: lineId || -1,
+        numero: '',
+        responsavel: '',
+        status: statusValue || 'Ativo',
+        centroCusto: centerValue || '',
+        percentual: ''
+      });
+      const counts = {};
+      draft
+        .filter(line => (line.status || 'Ativo') === 'Ativo')
+        .forEach(line => {
+          normalizeCenters(line.centroCusto).forEach(center => {
+            const key = norm(center);
+            counts[key] = (counts[key] || 0) + 1;
+          });
+        });
+      const centers = normalizeCenters(centerValue);
+      if (!centers.length) return '';
+      return centers
+        .map(center => {
+          const total = counts[norm(center)] || 1;
+          const pct = formatPercentNumber(100 / total);
+          return centers.length === 1 ? `${pct}% por C.C` : `${center}: ${pct}%`;
+        })
+        .join(' | ');
     }
 
     function monthLabel(monthKey) {
@@ -1303,7 +1400,8 @@
     }
 
     function renderActiveLines(rows) {
-      const lines = ensureMonthLines(currentMonthKey());
+      const lines = recalculateLinePercentages(currentMonthKey());
+      const activeLines = lines.filter(line => (line.status || 'Ativo') === 'Ativo');
       const summary = document.getElementById('activeLines');
       const accessSummary = document.getElementById('activeSummary');
       const credentials = document.getElementById('credentialsList');
@@ -1314,22 +1412,30 @@
         credentials.innerHTML = `<div class="empty-state"><b>Nenhuma credencial registrada.</b>Preencha login e senha no registro mensal quando necessario.</div>`;
         return;
       }
-      summary.innerHTML = lines.slice(0, 4).map(line => `
+      if (!activeLines.length) {
+        summary.innerHTML = `<div class="empty-state"><b>Sem linhas ativas neste mes.</b>As linhas cadastradas estao marcadas como inativas.</div>`;
+      } else {
+        summary.innerHTML = activeLines.slice(0, 4).map(line => `
         <div class="li">
           <div>
             <b class="link">${line.numero}</b>
             <div class="lisub">${line.responsavel || 'Sem responsavel'} | ${line.centroCusto}</div>
           </div>
-          <div class="tag ok">${line.percentual}% por C.C</div>
+          <div class="tag ${line.status === 'Inativo' ? 'neutral' : 'ok'}">${line.percentual}</div>
         </div>
-      `).join('');
+        `).join('');
+      }
       accessSummary.innerHTML = lines.map((line, index) => `
         <div class="cred-item">
           <h4>Linha ${index + 1}</h4>
           <div class="cred-row"><span>Numero</span><b>${line.numero || '-'}</b></div>
           <div class="cred-row"><span>Responsavel</span><b>${line.responsavel || '-'}</b></div>
+          <div class="cred-row"><span>Status</span><b>${line.status || 'Ativo'}</b></div>
           <div class="cred-row"><span>Centro de custo</span><b>${line.centroCusto || '-'}</b></div>
-          <div class="cred-row"><span>Percentual</span><b>${line.percentual || '-'}% por C.C</b></div>
+          <div class="cred-row"><span>Percentual</span><b>${line.percentual || '-'}</b></div>
+          <div style="margin-top:10px;display:flex;justify-content:flex-end">
+            <button class="inline-btn" type="button" onclick="editActiveLine(${line.id})">Editar linha</button>
+          </div>
         </div>
       `).join('');
       const withCredentials = rows.filter(row => row.loginAcesso || row.senhaAcesso || row.obs);
@@ -1599,6 +1705,33 @@
     }
     window.editDiaristaMonth = editDiaristaMonth;
 
+    function resetLineForm() {
+      editingLineId = null;
+      const form = document.getElementById('activeLinesForm');
+      form.reset();
+      form.elements.statusLinha.value = 'Ativo';
+      form.elements.percentualLinha.value = '';
+      document.getElementById('saveLineBtn').innerHTML = `${icon('plus')}Adicionar linha`;
+      document.getElementById('cancelLineEdit').style.display = 'none';
+    }
+
+    function editActiveLine(id) {
+      const line = ensureMonthLines(currentMonthKey()).find(entry => entry.id === id);
+      if (!line) return;
+      editingLineId = id;
+      const form = document.getElementById('activeLinesForm');
+      form.elements.numeroLinha.value = line.numero || '';
+      form.elements.responsavelLinha.value = line.responsavel || '';
+      form.elements.statusLinha.value = line.status || 'Ativo';
+      form.elements.centroLinha.value = line.centroCusto || '';
+      form.elements.percentualLinha.value = previewLinePercent(line.centroCusto || '', line.status || 'Ativo', id);
+      document.getElementById('saveLineBtn').innerHTML = `${icon('edit')}Salvar linha`;
+      document.getElementById('cancelLineEdit').style.display = 'inline-flex';
+      openView('access');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    window.editActiveLine = editActiveLine;
+
     function render() {
       ensureMonth(currentMonthKey());
       const rows = filteredRows();
@@ -1856,31 +1989,48 @@
       }
     });
 
-    document.getElementById('activeLinesForm').elements.centroLinha.addEventListener('input', event => {
-      document.getElementById('activeLinesForm').elements.percentualLinha.value = linePercent(event.target.value);
-    });
+    function updateLinePercentPreview() {
+      const form = document.getElementById('activeLinesForm');
+      form.elements.percentualLinha.value = previewLinePercent(
+        form.elements.centroLinha.value,
+        form.elements.statusLinha.value,
+        editingLineId
+      );
+    }
+
+    document.getElementById('activeLinesForm').elements.centroLinha.addEventListener('input', updateLinePercentPreview);
+    document.getElementById('activeLinesForm').elements.statusLinha.addEventListener('change', updateLinePercentPreview);
+    document.getElementById('cancelLineEdit').addEventListener('click', resetLineForm);
 
     document.getElementById('activeLinesForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const monthKey = currentMonthKey();
+      const lines = ensureMonthLines(monthKey);
       const line = {
-        id: createId(),
+        id: editingLineId || createId(),
         numero: formData.numeroLinha,
         responsavel: formData.responsavelLinha,
+        status: formData.statusLinha || 'Ativo',
         centroCusto: formData.centroLinha,
-        percentual: linePercent(formData.centroLinha)
+        percentual: ''
       };
-      ensureMonthLines(currentMonthKey()).push(line);
-      event.currentTarget.reset();
-      event.currentTarget.elements.percentualLinha.value = '';
+      if (editingLineId) {
+        const index = lines.findIndex(entry => entry.id === editingLineId);
+        if (index >= 0) lines[index] = line;
+      } else {
+        lines.push(line);
+      }
+      recalculateLinePercentages(monthKey);
+      resetLineForm();
       saveLocalCache();
       render();
       try {
-        await upsertLineRemote(currentMonthKey(), line);
-        setSyncStatus(`Linha ${line.numero} sincronizada com Supabase`);
+        await syncMonthLinesRemote(monthKey);
+        setSyncStatus(`Linhas do mes ${monthLabel(monthKey)} sincronizadas com Supabase`);
       } catch (error) {
         console.error(error);
-        setSyncStatus(`Falha ao sincronizar linha ${line.numero}. Cache local mantido.`);
+        setSyncStatus(`Falha ao sincronizar linhas de ${monthLabel(monthKey)}. Cache local mantido.`);
       }
     });
 

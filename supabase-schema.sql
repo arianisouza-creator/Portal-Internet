@@ -32,10 +32,14 @@ create table if not exists public.internet_lines (
   month_key text not null,
   numero text not null default '',
   responsavel text not null default '',
+  status text not null default 'Ativo',
   centro_custo text not null default '',
   percentual text not null default '',
   created_at timestamptz not null default now()
 );
+
+alter table if exists public.internet_lines
+add column if not exists status text not null default 'Ativo';
 
 create table if not exists public.diarista_cadastros (
   id bigint primary key,
