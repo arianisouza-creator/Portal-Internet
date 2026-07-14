@@ -150,8 +150,11 @@
     .pwd{font-family:"IBM Plex Mono",monospace}
     .inline-btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:6px 10px;font-size:12px;color:#456191;font-weight:600}
     .contract-stack{display:grid;gap:14px;margin-top:14px}
-    .mini-form{display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end}
+    .mini-form{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:end}
     .mini-form .primary{min-height:40px}
+    .line-grid{display:grid;gap:10px;margin-top:12px}
+    .line-row{display:grid;grid-template-columns:1.2fr 1fr 1fr .8fr auto;gap:10px;align-items:end}
+    .pending{color:var(--red);font-weight:700}
     .auth-card{max-width:420px;margin:10px auto 0;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:22px}
     .auth-card h3{margin:0 0 8px;color:#17356c;font-size:24px}
     .auth-card p{margin:0 0 14px;color:#667085}
@@ -416,16 +419,34 @@
             <h1>Cadastro de Contratos</h1>
             <p>Cadastre novas empresas e contratos uma vez. Depois o novo registro puxa obra, empresa, vencimento e numero do contrato automaticamente.</p>
           </div>
-          <section class="card pad">
-            <div class="chead"><span class="ti2">Novo contrato</span><span class="eyebrow">Base mestre</span></div>
-            <form id="contractForm" class="mini-form">
-              <label>Empresa<input name="empresaContrato" required placeholder="Ex.: Vivo"></label>
-              <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede"></label>
-              <label>Vencimento<input name="vencimentoContrato" type="number" min="1" max="31" required placeholder="Dia do mes"></label>
-              <label>Numero do contrato<input name="numeroContrato" required placeholder="Ex.: 285704686"></label>
-              <button class="primary" type="submit"><span data-icon="plus"></span>Salvar</button>
-            </form>
-          </section>
+        <section class="card pad">
+          <div class="chead"><span class="ti2">Novo contrato</span><span class="eyebrow">Base mestre</span></div>
+          <form id="contractForm" class="mini-form">
+            <label>Empresa<input name="empresaContrato" required placeholder="Ex.: Vivo"></label>
+            <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede"></label>
+            <label>Vencimento<input name="vencimentoContrato" type="number" min="1" max="31" required placeholder="Dia do mes"></label>
+            <label>Numero do contrato<input name="numeroContrato" required placeholder="Ex.: 285704686"></label>
+            <label>Status
+              <select name="statusContrato">
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+              </select>
+            </label>
+            <label>Mes de inicio<input name="inicioContrato" type="month" required></label>
+            <label>Mes/ano inativo<input name="fimContrato" type="month"></label>
+            <label>Contato<input name="contatoContrato" placeholder="Telefone, WhatsApp ou responsavel"></label>
+            <label>Login<input name="loginContrato" placeholder="Login da internet"></label>
+            <label>Senha<input name="senhaContrato" type="password" placeholder="Senha da internet"></label>
+            <label style="grid-column:1 / -1">Observacao<input name="obsContrato" placeholder="Observacao do contrato"></label>
+            <div style="grid-column:1 / -1">
+              <div class="chead" style="margin:8px 0 0"><span class="ti2" style="font-size:14px">Linhas ativas</span><button class="ghost" type="button" id="addLineBtn">Adicionar linha</button></div>
+              <div class="line-grid" id="lineFields"></div>
+            </div>
+            <div style="grid-column:1 / -1;display:flex;justify-content:flex-end">
+              <button class="primary" type="submit"><span data-icon="plus"></span>Salvar contrato</button>
+            </div>
+          </form>
+        </section>
           <div class="contract-stack">
             <section class="card pad">
               <div class="chead"><span class="ti2">Contratos cadastrados</span><span class="eyebrow" id="contractCount">0 contratos</span></div>
@@ -472,12 +493,14 @@
           <label>Senha de acesso<input name="senhaAcesso" type="password" placeholder="Senha protegida"></label>
           <label>Aprovado
             <select name="aprovado">
+              <option value="pendente">Pendente</option>
               <option value="sim">Sim</option>
               <option value="nao">Nao</option>
             </select>
           </label>
           <label>S1
             <select name="s1">
+              <option value="pendente">Pendente</option>
               <option value="sim">Sim</option>
               <option value="nao">Nao</option>
             </select>
@@ -569,11 +592,12 @@
     let filter = 'todos';
     let selectedId = null;
     let editingId = null;
+    let editingContractId = null;
     let protectedAuthenticated = false;
     const PROTECTED_USER = 'ADM';
     const PROTECTED_PASS = 'mse2026';
     const monthPicker = document.getElementById('monthPicker');
-    const dataByMonth = {};
+    const monthOverrides = {};
     const contracts = [];
 
     function defaultMonth() {
@@ -586,20 +610,80 @@
     monthPicker.value = defaultMonth();
 
     function ensureMonth(monthKey) {
-      if (!dataByMonth[monthKey]) dataByMonth[monthKey] = [];
-      return dataByMonth[monthKey];
+      if (!monthOverrides[monthKey]) monthOverrides[monthKey] = {};
+      return monthOverrides[monthKey];
     }
 
     function currentMonthKey() {
       return monthPicker.value || defaultMonth();
     }
 
+    function monthIndex(monthKey) {
+      const [year, month] = monthKey.split('-').map(Number);
+      return year * 12 + month;
+    }
+
+    function contractIsVisible(contract, monthKey) {
+      const current = monthIndex(monthKey);
+      const start = monthIndex(contract.inicioContrato);
+      const end = contract.fimContrato ? monthIndex(contract.fimContrato) : null;
+      return current >= start && (end == null || current < end);
+    }
+
+    function buildMonthRow(contract, monthKey) {
+      const override = ensureMonth(monthKey)[contract.id] || {};
+      return {
+        id: contract.id,
+        status: 'Ativo',
+        obra: contract.obra,
+        empresa: contract.empresa,
+        vencimento: contract.vencimento,
+        contrato: contract.numeroContrato,
+        contato: contract.contato || '-',
+        valor: override.valor ?? null,
+        pedido: override.pedido ?? '',
+        aprovado: Object.prototype.hasOwnProperty.call(override, 'aprovado') ? override.aprovado : null,
+        s1: Object.prototype.hasOwnProperty.call(override, 's1') ? override.s1 : null,
+        linhaAtiva: (contract.linhas && contract.linhas.length) ? contract.linhas[0].numero : '',
+        loginAcesso: contract.loginContrato || '',
+        senhaAcesso: contract.senhaContrato || '',
+        obs: contract.obsContrato || '',
+        linhas: contract.linhas || []
+      };
+    }
+
     function currentData() {
-      return ensureMonth(currentMonthKey());
+      return contracts
+        .filter(contract => contractIsVisible(contract, currentMonthKey()))
+        .map(contract => buildMonthRow(contract, currentMonthKey()));
     }
 
     function contractLabel(contract) {
       return `${contract.empresa} | ${contract.obra} | ${contract.numeroContrato}`;
+    }
+
+    function addLineField(line = {}) {
+      const container = document.getElementById('lineFields');
+      const row = document.createElement('div');
+      row.className = 'line-row';
+      row.innerHTML = `
+        <label>Numero<input name="linhaNumero" value="${line.numero || ''}" placeholder="43 99999-0000"></label>
+        <label>Responsavel<input name="linhaResponsavel" value="${line.responsavel || ''}" placeholder="Nome"></label>
+        <label>Centro de custo<input name="linhaCentro" value="${line.centroCusto || ''}" placeholder="ADM"></label>
+        <label>Percentual<input name="linhaPercentual" value="${line.percentual || ''}" type="number" min="0" max="100" placeholder="16"></label>
+        <button class="ghost" type="button">Remover</button>
+      `;
+      row.querySelector('button').addEventListener('click', () => row.remove());
+      container.appendChild(row);
+    }
+
+    function collectLines() {
+      return Array.from(document.querySelectorAll('#lineFields .line-row')).map(row => ({
+        numero: row.querySelector('input[name="linhaNumero"]').value,
+        responsavel: row.querySelector('input[name="linhaResponsavel"]').value,
+        centroCusto: row.querySelector('input[name="linhaCentro"]').value,
+        percentual: row.querySelector('input[name="linhaPercentual"]').value
+      })).filter(line => line.numero || line.responsavel || line.centroCusto || line.percentual);
     }
 
     function monthLabel(monthKey) {
@@ -733,18 +817,22 @@
       `).join('');
       accessSummary.innerHTML = withLines.map(row => `
         <div class="cred-item">
-          <h4>${row.linhaAtiva}</h4>
+          <h4>${row.empresa}</h4>
           <div class="cred-row"><span>Obra</span><b>${row.obra || '-'}</b></div>
           <div class="cred-row"><span>Empresa</span><b>${row.empresa || '-'}</b></div>
           <div class="cred-row"><span>Contrato</span><b>${row.contrato || '-'}</b></div>
           <div class="cred-row"><span>Vencimento</span><b>${row.vencimento || '-'}</b></div>
+          ${(row.linhas || []).map(line => `
+            <div class="cred-row"><span>${line.numero} - ${line.responsavel}</span><b>${line.centroCusto} - ${line.percentual}%</b></div>
+          `).join('')}
         </div>
       `).join('');
       credentials.innerHTML = withLines.map(row => `
         <div class="cred-item">
-          <h4>${row.linhaAtiva}</h4>
+          <h4>${row.empresa}</h4>
           <div class="cred-row"><span>Login</span><b class="pwd">${row.loginAcesso || 'Nao informado'}</b></div>
           <div class="cred-row"><span>Senha</span><b class="pwd" data-secret="${row.id}">${maskPassword(row.senhaAcesso)}</b></div>
+          <div class="cred-row"><span>Observacao</span><b>${row.obs || '-'}</b></div>
           <div style="margin-top:10px">
             <button class="inline-btn" type="button" onclick="togglePassword(${row.id})">${row.senhaAcesso ? 'Mostrar senha' : 'Sem senha'}</button>
           </div>
@@ -776,9 +864,18 @@
       list.innerHTML = contracts.map(contract => `
         <div class="cred-item">
           <h4>${contract.empresa}</h4>
+          <div class="cred-row"><span>Status</span><b>${contract.statusContrato}</b></div>
+          <div class="cred-row"><span>Inicio</span><b>${monthLabel(contract.inicioContrato)}</b></div>
+          <div class="cred-row"><span>Inativo em</span><b>${contract.fimContrato ? monthLabel(contract.fimContrato) : '-'}</b></div>
           <div class="cred-row"><span>Obra</span><b>${contract.obra}</b></div>
           <div class="cred-row"><span>Vencimento</span><b>${contract.vencimento}</b></div>
           <div class="cred-row"><span>Contrato</span><b>${contract.numeroContrato}</b></div>
+          <div class="cred-row"><span>Login</span><b>${contract.loginContrato || '-'}</b></div>
+          <div class="cred-row"><span>Senha</span><b class="pwd">${maskPassword(contract.senhaContrato)}</b></div>
+          <div class="cred-row"><span>Observacao</span><b>${contract.obsContrato || '-'}</b></div>
+          <div style="margin-top:10px;display:flex;justify-content:flex-end">
+            <button class="inline-btn" type="button" onclick="editContract(${contract.id})">Editar contrato</button>
+          </div>
         </div>
       `).join('');
       populateContractOptions();
@@ -810,9 +907,27 @@
       form.elements.linhaAtiva.value = row.linhaAtiva || '';
       form.elements.loginAcesso.value = row.loginAcesso || '';
       form.elements.senhaAcesso.value = row.senhaAcesso || '';
-      form.elements.aprovado.value = row.aprovado ? 'sim' : 'nao';
-      form.elements.s1.value = row.s1 ? 'sim' : 'nao';
+      form.elements.aprovado.value = row.aprovado == null ? 'pendente' : row.aprovado ? 'sim' : 'nao';
+      form.elements.s1.value = row.s1 == null ? 'pendente' : row.s1 ? 'sim' : 'nao';
       form.elements.obs.value = row.obs || '';
+    }
+
+    function fillContractForm(contract) {
+      const form = document.getElementById('contractForm');
+      form.elements.empresaContrato.value = contract.empresa || '';
+      form.elements.obraContrato.value = contract.obra || '';
+      form.elements.vencimentoContrato.value = contract.vencimento || '';
+      form.elements.numeroContrato.value = contract.numeroContrato || '';
+      form.elements.statusContrato.value = contract.statusContrato || 'Ativo';
+      form.elements.inicioContrato.value = contract.inicioContrato || '';
+      form.elements.fimContrato.value = contract.fimContrato || '';
+      form.elements.contatoContrato.value = contract.contato || '';
+      form.elements.loginContrato.value = contract.loginContrato || '';
+      form.elements.senhaContrato.value = contract.senhaContrato || '';
+      form.elements.obsContrato.value = contract.obsContrato || '';
+      document.getElementById('lineFields').innerHTML = '';
+      (contract.linhas || []).forEach(addLineField);
+      if (!(contract.linhas || []).length) addLineField();
     }
 
     function renderTable(rows) {
@@ -829,10 +944,10 @@
           <td><b style="color:#2d8b57">${row.vencimento || '-'}</b></td>
           <td>${row.contrato || '-'}</td>
           <td>${row.contato || '-'}</td>
-          <td><span class="money">${row.valor != null ? brl(row.valor) : '-'}</span></td>
-          <td>${row.pedido || '-'}</td>
-          <td>${row.aprovado ? 'Sim' : 'Nao'}</td>
-          <td>${row.s1 ? 'Sim' : 'Nao'}</td>
+          <td><span class="${row.valor == null ? 'pending' : 'money'}">${row.valor != null ? brl(row.valor) : 'Pendente'}</span></td>
+          <td><span class="${!row.pedido ? 'pending' : ''}">${row.pedido || 'Pendente'}</span></td>
+          <td><span class="${row.aprovado == null ? 'pending' : ''}">${row.aprovado == null ? 'Pendente' : row.aprovado ? 'Sim' : 'Nao'}</span></td>
+          <td><span class="${row.s1 == null ? 'pending' : ''}">${row.s1 == null ? 'Pendente' : row.s1 ? 'Sim' : 'Nao'}</span></td>
           <td class="actioncell">
             <div style="display:flex;justify-content:flex-end;gap:8px">
               <button class="rowact" title="Ver detalhe" aria-label="Ver detalhe" onclick="selectRow(${row.id})">${icon('eye')}</button>
@@ -882,6 +997,15 @@
       modal.classList.add('open');
     }
     window.editRow = editRow;
+
+    function editContract(id) {
+      const contract = contracts.find(item => item.id === id);
+      if (!contract) return;
+      editingContractId = id;
+      fillContractForm(contract);
+      openView('contracts');
+    }
+    window.editContract = editContract;
 
     function render() {
       ensureMonth(currentMonthKey());
@@ -971,7 +1095,7 @@
     document.getElementById('resetMonth').addEventListener('click', () => {
       const label = monthLabel(currentMonthKey());
       if (!window.confirm(`Deseja zerar todos os registros do mes ${label}?`)) return;
-      dataByMonth[currentMonthKey()] = [];
+      monthOverrides[currentMonthKey()] = {};
       selectedId = null;
       render();
     });
@@ -979,15 +1103,33 @@
     document.getElementById('contractForm').addEventListener('submit', event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
-      contracts.push({
-        id: Date.now(),
+      const payload = {
+        id: editingContractId || Date.now(),
         empresa: formData.empresaContrato,
         obra: formData.obraContrato,
         vencimento: formData.vencimentoContrato,
-        numeroContrato: formData.numeroContrato
-      });
+        numeroContrato: formData.numeroContrato,
+        statusContrato: formData.statusContrato,
+        inicioContrato: formData.inicioContrato,
+        fimContrato: formData.fimContrato || '',
+        contato: formData.contatoContrato || '',
+        loginContrato: formData.loginContrato || '',
+        senhaContrato: formData.senhaContrato || '',
+        obsContrato: formData.obsContrato || '',
+        linhas: collectLines()
+      };
+      if (editingContractId) {
+        const index = contracts.findIndex(item => item.id === editingContractId);
+        if (index >= 0) contracts[index] = payload;
+      } else {
+        contracts.push(payload);
+      }
+      editingContractId = null;
       event.currentTarget.reset();
+      document.getElementById('lineFields').innerHTML = '';
+      addLineField();
       renderContracts();
+      render();
     });
 
     document.getElementById('form').addEventListener('submit', event => {
@@ -995,36 +1137,49 @@
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const numericValue = formData.valor ? Number(formData.valor.replace(/\./g, '').replace(',', '.')) : null;
       const targetMonth = formData.mesReferencia || currentMonthKey();
-      const payload = {
-        id: editingId || Date.now(),
-        status: formData.status,
-        obra: formData.obra,
-        empresa: formData.empresa,
-        vencimento: formData.vencimento || '',
-        contrato: formData.contrato || '-',
-        contato: formData.contato || '-',
-        valor: Number.isFinite(numericValue) ? numericValue : null,
-        pedido: formData.pedido || '-',
-        linhaAtiva: formData.linhaAtiva || '',
-        loginAcesso: formData.loginAcesso || '',
-        senhaAcesso: formData.senhaAcesso || '',
-        aprovado: formData.aprovado === 'sim',
-        s1: formData.s1 === 'sim',
-        obs: formData.obs || ''
-      };
-      if (editingId) {
-        const rows = ensureMonth(targetMonth);
-        const index = rows.findIndex(item => item.id === editingId);
-        if (index >= 0) rows[index] = payload;
+      const contractId = editingId || (formData.contratoBase ? Number(formData.contratoBase) : null);
+      let contract = contracts.find(item => item.id === contractId);
+      if (!contract) {
+        contract = {
+          id: Date.now(),
+          empresa: formData.empresa,
+          obra: formData.obra,
+          vencimento: formData.vencimento || '',
+          numeroContrato: formData.contrato || '-',
+          statusContrato: 'Ativo',
+          inicioContrato: targetMonth,
+          fimContrato: '',
+          contato: formData.contato || '-',
+          loginContrato: formData.loginAcesso || '',
+          senhaContrato: formData.senhaAcesso || '',
+          obsContrato: formData.obs || '',
+          linhas: formData.linhaAtiva ? [{ numero: formData.linhaAtiva, responsavel: '', centroCusto: '', percentual: '' }] : []
+        };
+        contracts.push(contract);
       } else {
-        ensureMonth(targetMonth).push(payload);
+        contract.empresa = formData.empresa;
+        contract.obra = formData.obra;
+        contract.vencimento = formData.vencimento || '';
+        contract.numeroContrato = formData.contrato || '-';
+        contract.contato = formData.contato || '-';
+        contract.loginContrato = formData.loginAcesso || '';
+        contract.senhaContrato = formData.senhaAcesso || '';
+        contract.obsContrato = formData.obs || '';
       }
+      ensureMonth(targetMonth)[contract.id] = {
+        valor: Number.isFinite(numericValue) ? numericValue : null,
+        pedido: formData.pedido || '',
+        aprovado: formData.aprovado === 'pendente' ? null : formData.aprovado === 'sim',
+        s1: formData.s1 === 'pendente' ? null : formData.s1 === 'sim'
+      };
       monthPicker.value = targetMonth;
       event.currentTarget.reset();
       closeModal();
       render();
     });
 
+    document.getElementById('addLineBtn').addEventListener('click', () => addLineField());
+    addLineField();
     refreshProtectedViews();
     openView('overview');
     render();
