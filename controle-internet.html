@@ -47,8 +47,14 @@
     .side{background:linear-gradient(180deg,#243d66,#1a2e4f);color:#fff;border-radius:16px;box-shadow:var(--shadow);padding:12px;min-height:calc(100vh - 138px);position:sticky;top:12px}
     .ssearch{height:40px;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(255,255,255,.06);display:flex;align-items:center;gap:9px;color:rgba(255,255,255,.72);padding:0 11px;margin-bottom:14px}
     .navblock{border-top:1px solid rgba(255,255,255,.08);padding-top:12px}
-    .navhead{height:42px;border-radius:12px;background:#3a5583;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-weight:700}
-    .subnav{padding:10px 0 0 8px;border-left:1px solid rgba(255,255,255,.14);margin:8px 0 0 10px}
+    .nv{height:42px;border-radius:12px;display:flex;align-items:center;gap:10px;padding:0 12px;color:rgba(255,255,255,.88);transition:.16s ease}
+    .nv:hover{background:rgba(255,255,255,.08)}
+    .nv.on{background:#3a5583;color:#fff;font-weight:700}
+    .ni{width:18px;height:18px;display:grid;place-items:center;flex:0 0 auto}
+    .nl{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .chev{width:18px;height:18px;display:grid;place-items:center;transition:transform .16s ease}
+    .navblock.open .chev{transform:rotate(90deg)}
+    .navtree{padding:8px 0 0 8px;border-left:1px solid rgba(255,255,255,.14);margin:8px 0 0 10px}
     .subitem{height:34px;display:flex;align-items:center;padding:0 12px;border-radius:10px;color:rgba(255,255,255,.76);font-size:13px}
     .subitem.on{background:rgba(255,255,255,.12);color:#fff;font-weight:700}
     .main{min-width:0}
@@ -137,9 +143,8 @@
     .fab{position:fixed;right:24px;bottom:24px;width:52px;height:52px;border:0;border-radius:16px;background:var(--navy);color:#fff;display:grid;place-items:center;box-shadow:0 12px 24px rgba(22,36,60,.22)}
     .side-closed{grid-template-columns:86px 1fr}
     .side-closed .side{padding:12px 10px}
-    .side-closed .ssearch span,.side-closed .navlabel,.side-closed .subnav{display:none}
-    .side-closed .navhead{justify-content:center}
-    .side-closed .navhead strong{display:none}
+    .side-closed .ssearch span,.side-closed .navlabel,.side-closed .navtree,.side-closed .nl,.side-closed .chev{display:none}
+    .side-closed .nv{justify-content:center;padding:0}
     svg{width:18px;height:18px;stroke-width:1.8}
     @media (max-width:1280px){.kpis{grid-template-columns:repeat(3,1fr)}.dashgrid{grid-template-columns:1fr 1fr}.detail-grid{grid-template-columns:1fr}}
     @media (max-width:980px){.shell{grid-template-columns:1fr;padding:14px}.side{position:static;min-height:0}.trow{grid-template-columns:1fr 1fr;padding:14px}.monthbar,.toolbar{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.detail-grid{grid-template-columns:1fr}.hinner{padding:14px}.user,.clock{display:none}}
@@ -194,12 +199,13 @@
   <div class="shell">
     <aside class="side">
       <div class="ssearch"><span data-icon="search"></span><span class="navlabel">Buscar modulos</span></div>
-      <div class="navblock">
-        <div class="navhead">
-          <span style="display:flex;align-items:center;gap:10px"><span data-icon="briefcase"></span><strong>Administrativo</strong></span>
-          <span data-icon="chevronDown"></span>
-        </div>
-        <div class="subnav">
+      <div class="navblock open" id="adminBlock">
+        <button class="nv on" id="adminToggle" type="button">
+          <span class="ni" data-icon="briefcase"></span>
+          <span class="nl">Administrativo</span>
+          <span class="chev" data-icon="chevronRight"></span>
+        </button>
+        <div class="navtree">
           <div class="subitem on">Controle de Internet</div>
         </div>
       </div>
@@ -355,6 +361,7 @@
       </div>
       <form id="form">
         <div class="formgrid">
+          <label>Mes de referencia<input name="mesReferencia" type="month" required></label>
           <label>Status
             <select name="status">
               <option>Ativo</option>
@@ -402,6 +409,7 @@
       search:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-4.3-4.3',
       briefcase:'M2 7h20v14H2zM16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2',
       chevronDown:'m6 9 6 6 6-6',
+      chevronRight:'m9 6 6 6-6 6',
       menu:'M3 6h18M3 12h18M3 18h18',
       wifi:'M5 13a10 10 0 0 1 14 0M8.5 16.5a5 5 0 0 1 7 0M12 20h.01M2 9a15 15 0 0 1 20 0',
       calendar:'M3 4h18v17H3zM16 2v4M8 2v4M3 10h18',
@@ -433,6 +441,9 @@
 
     document.getElementById('sideToggle').addEventListener('click', () => {
       document.querySelector('.shell').classList.toggle('side-closed');
+    });
+    document.getElementById('adminToggle').addEventListener('click', () => {
+      document.getElementById('adminBlock').classList.toggle('open');
     });
 
     let filter = 'todos';
@@ -679,7 +690,11 @@
 
     const modal = document.getElementById('modal');
     function closeModal() { modal.classList.remove('open'); }
-    document.getElementById('addBtn').addEventListener('click', () => modal.classList.add('open'));
+    document.getElementById('addBtn').addEventListener('click', () => {
+      const monthInput = document.querySelector('input[name="mesReferencia"]');
+      if (monthInput) monthInput.value = currentMonthKey();
+      modal.classList.add('open');
+    });
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancel').addEventListener('click', closeModal);
 
@@ -695,7 +710,8 @@
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const numericValue = formData.valor ? Number(formData.valor.replace(/\./g, '').replace(',', '.')) : null;
-      currentData().push({
+      const targetMonth = formData.mesReferencia || currentMonthKey();
+      ensureMonth(targetMonth).push({
         id: Date.now(),
         status: formData.status,
         obra: formData.obra,
@@ -709,6 +725,7 @@
         s1: formData.s1 === 'sim',
         obs: formData.obs || ''
       });
+      monthPicker.value = targetMonth;
       event.currentTarget.reset();
       closeModal();
       render();
