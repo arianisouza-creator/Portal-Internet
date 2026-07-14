@@ -189,7 +189,7 @@
         <span class="hsep"></span>
         <div class="titles">
           <div class="t">Portal Administrativo</div>
-          <div class="s">Controle mensal de internet</div>
+          <div class="s">Controle mensal administrativo</div>
         </div>
       </div>
       <div class="grow"></div>
@@ -774,6 +774,12 @@
     let currentModule = 'internet';
     const PROTECTED_USER = 'ADM';
     const PROTECTED_PASS = 'mse2026';
+    const portalConfig = window.PORTAL_CONFIG || {};
+    const supabaseConfig = portalConfig.supabase || {};
+    const SUPABASE_URL = (supabaseConfig.url || '').replace(/\/+$/, '');
+    const SUPABASE_ANON_KEY = supabaseConfig.anonKey || '';
+    const REMOTE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+    const LOCAL_CACHE_KEY = 'portal-mse-cache-v2';
     const monthPicker = document.getElementById('monthPicker');
     const monthOverrides = {};
     const monthLines = {};
@@ -786,6 +792,305 @@
       const yyyy = now.getFullYear();
       const mm = String(now.getMonth() + 1).padStart(2, '0');
       return `${yyyy}-${mm}`;
+    }
+
+    function createId() {
+      return Date.now() + Math.floor(Math.random() * 1000);
+    }
+
+    function clearObject(target) {
+      Object.keys(target).forEach(key => delete target[key]);
+    }
+
+    function setSyncStatus(message) {
+      const stamp = document.getElementById('updatedAt');
+      if (stamp) stamp.textContent = message;
+    }
+
+    function emptyPayload() {
+      return {
+        contracts: [],
+        monthEntries: [],
+        monthLines: [],
+        diaristaMasters: [],
+        diaristaMonthEntries: []
+      };
+    }
+
+    function serializeState() {
+      return {
+        contracts: contracts.map(item => ({ ...item })),
+        monthEntries: Object.entries(monthOverrides).flatMap(([monthKey, entries]) =>
+          Object.entries(entries).map(([contractId, override]) => ({
+            month_key: monthKey,
+            contract_id: Number(contractId),
+            status: override.status || 'Ativo',
+            valor: Object.prototype.hasOwnProperty.call(override, 'valor') ? override.valor : null,
+            pedido: override.pedido || '',
+            aprovado: Object.prototype.hasOwnProperty.call(override, 'aprovado') ? override.aprovado : null,
+            s1: Object.prototype.hasOwnProperty.call(override, 's1') ? override.s1 : null,
+            login_acesso: override.loginAcesso || '',
+            senha_acesso: override.senhaAcesso || '',
+            obs: override.obs || ''
+          }))
+        ),
+        monthLines: Object.entries(monthLines).flatMap(([monthKey, lines]) =>
+          lines.map(line => ({
+            id: Number(line.id),
+            month_key: monthKey,
+            numero: line.numero || '',
+            responsavel: line.responsavel || '',
+            centro_custo: line.centroCusto || '',
+            percentual: line.percentual || ''
+          }))
+        ),
+        diaristaMasters: diaristaMasters.map(item => ({ ...item })),
+        diaristaMonthEntries: Object.entries(diaristaMonthOverrides).flatMap(([monthKey, entries]) =>
+          Object.entries(entries).map(([diaristaId, override]) => ({
+            month_key: monthKey,
+            diarista_id: Number(diaristaId),
+            pedido: override.pedido || '',
+            valor: Object.prototype.hasOwnProperty.call(override, 'valor') ? override.valor : null,
+            protocolado: override.protocolado || '',
+            link: override.link || ''
+          }))
+        )
+      };
+    }
+
+    function hydrateState(payload = emptyPayload()) {
+      contracts.splice(0, contracts.length, ...((payload.contracts || []).map(item => ({
+        id: Number(item.id),
+        empresa: item.empresa || '',
+        obra: item.obra || '',
+        vencimento: item.vencimento != null ? String(item.vencimento) : '',
+        numeroContrato: item.numeroContrato ?? item.numero_contrato ?? '',
+        statusContrato: item.statusContrato ?? item.status_contrato ?? 'Ativo',
+        inicioContrato: item.inicioContrato ?? item.inicio_contrato ?? defaultMonth(),
+        fimContrato: item.fimContrato ?? item.fim_contrato ?? '',
+        contato: item.contato || '',
+        obsContrato: item.obsContrato ?? item.obs_contrato ?? ''
+      }))));
+
+      clearObject(monthOverrides);
+      (payload.monthEntries || []).forEach(entry => {
+        ensureMonth(entry.month_key)[Number(entry.contract_id)] = {
+          status: entry.status || 'Ativo',
+          valor: entry.valor == null ? null : Number(entry.valor),
+          pedido: entry.pedido || '',
+          aprovado: Object.prototype.hasOwnProperty.call(entry, 'aprovado') ? entry.aprovado : null,
+          s1: Object.prototype.hasOwnProperty.call(entry, 's1') ? entry.s1 : null,
+          loginAcesso: entry.loginAcesso ?? entry.login_acesso ?? '',
+          senhaAcesso: entry.senhaAcesso ?? entry.senha_acesso ?? '',
+          obs: entry.obs || ''
+        };
+      });
+
+      clearObject(monthLines);
+      (payload.monthLines || []).forEach(entry => {
+        ensureMonthLines(entry.month_key).push({
+          id: Number(entry.id),
+          numero: entry.numero || '',
+          responsavel: entry.responsavel || '',
+          centroCusto: entry.centroCusto ?? entry.centro_custo ?? '',
+          percentual: entry.percentual != null ? String(entry.percentual) : ''
+        });
+      });
+
+      diaristaMasters.splice(0, diaristaMasters.length, ...((payload.diaristaMasters || []).map(item => ({
+        id: Number(item.id),
+        obraDiarista: item.obraDiarista ?? item.obra_diarista ?? '',
+        nomeDiarista: item.nomeDiarista ?? item.nome_diarista ?? '',
+        statusDiarista: item.statusDiarista ?? item.status_diarista ?? 'Ativo',
+        inicioDiarista: item.inicioDiarista ?? item.inicio_diarista ?? defaultMonth(),
+        fimDiarista: item.fimDiarista ?? item.fim_diarista ?? ''
+      }))));
+
+      clearObject(diaristaMonthOverrides);
+      (payload.diaristaMonthEntries || []).forEach(entry => {
+        ensureDiaristaMonth(entry.month_key)[Number(entry.diarista_id)] = {
+          pedido: entry.pedido || '',
+          valor: entry.valor == null ? null : Number(entry.valor),
+          protocolado: entry.protocolado || '',
+          link: entry.link || ''
+        };
+      });
+    }
+
+    function saveLocalCache() {
+      try {
+        window.localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(serializeState()));
+      } catch (error) {
+        console.warn('Nao foi possivel salvar cache local.', error);
+      }
+    }
+
+    function loadLocalCache() {
+      try {
+        const raw = window.localStorage.getItem(LOCAL_CACHE_KEY);
+        return raw ? JSON.parse(raw) : emptyPayload();
+      } catch (error) {
+        console.warn('Nao foi possivel carregar cache local.', error);
+        return emptyPayload();
+      }
+    }
+
+    function buildApiUrl(table, query = '') {
+      return `${SUPABASE_URL}/rest/v1/${table}${query ? `?${query}` : ''}`;
+    }
+
+    async function supabaseRequest(table, { method = 'GET', query = '', body = null, prefer = '' } = {}) {
+      const headers = {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      };
+      if (body !== null) headers['Content-Type'] = 'application/json';
+      if (prefer) headers.Prefer = prefer;
+      const response = await fetch(buildApiUrl(table, query), {
+        method,
+        headers,
+        body: body === null ? undefined : JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`${table}: ${response.status} ${detail}`);
+      }
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) return response.json();
+      return null;
+    }
+
+    async function loadRemoteState() {
+      const [remoteContracts, remoteMonthEntries, remoteLines, remoteDiarista, remoteDiaristaEntries] = await Promise.all([
+        supabaseRequest('internet_contracts', { query: 'select=*&order=id.asc' }),
+        supabaseRequest('internet_month_entries', { query: 'select=*&order=month_key.asc,contract_id.asc' }),
+        supabaseRequest('internet_lines', { query: 'select=*&order=month_key.asc,id.asc' }),
+        supabaseRequest('diarista_cadastros', { query: 'select=*&order=id.asc' }),
+        supabaseRequest('diarista_month_entries', { query: 'select=*&order=month_key.asc,diarista_id.asc' })
+      ]);
+      return {
+        contracts: remoteContracts,
+        monthEntries: remoteMonthEntries,
+        monthLines: remoteLines,
+        diaristaMasters: remoteDiarista,
+        diaristaMonthEntries: remoteDiaristaEntries
+      };
+    }
+
+    async function bootstrapData() {
+      setSyncStatus('Carregando dados do portal...');
+      if (REMOTE_ENABLED) {
+        try {
+          const payload = await loadRemoteState();
+          hydrateState(payload);
+          saveLocalCache();
+          setSyncStatus('Ultima atualizacao via Supabase');
+          return;
+        } catch (error) {
+          console.error(error);
+          hydrateState(loadLocalCache());
+          setSyncStatus('Supabase indisponivel. Usando cache local.');
+          return;
+        }
+      }
+      hydrateState(loadLocalCache());
+      setSyncStatus('Supabase nao configurado. Usando modo local.');
+    }
+
+    async function upsertContractRemote(contract) {
+      if (!REMOTE_ENABLED) return;
+      await supabaseRequest('internet_contracts', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=representation',
+        body: [{
+          id: Number(contract.id),
+          empresa: contract.empresa || '',
+          obra: contract.obra || '',
+          vencimento: contract.vencimento || '',
+          numero_contrato: contract.numeroContrato || '',
+          status_contrato: contract.statusContrato || 'Ativo',
+          inicio_contrato: contract.inicioContrato || defaultMonth(),
+          fim_contrato: contract.fimContrato || '',
+          contato: contract.contato || '',
+          obs_contrato: contract.obsContrato || ''
+        }]
+      });
+    }
+
+    async function upsertMonthEntryRemote(monthKey, contractId, entry) {
+      if (!REMOTE_ENABLED) return;
+      await supabaseRequest('internet_month_entries', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=representation',
+        body: [{
+          month_key: monthKey,
+          contract_id: Number(contractId),
+          status: entry.status || 'Ativo',
+          valor: entry.valor == null ? null : Number(entry.valor),
+          pedido: entry.pedido || '',
+          aprovado: Object.prototype.hasOwnProperty.call(entry, 'aprovado') ? entry.aprovado : null,
+          s1: Object.prototype.hasOwnProperty.call(entry, 's1') ? entry.s1 : null,
+          login_acesso: entry.loginAcesso || '',
+          senha_acesso: entry.senhaAcesso || '',
+          obs: entry.obs || ''
+        }]
+      });
+    }
+
+    async function upsertLineRemote(monthKey, line) {
+      if (!REMOTE_ENABLED) return;
+      await supabaseRequest('internet_lines', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=representation',
+        body: [{
+          id: Number(line.id),
+          month_key: monthKey,
+          numero: line.numero || '',
+          responsavel: line.responsavel || '',
+          centro_custo: line.centroCusto || '',
+          percentual: line.percentual || ''
+        }]
+      });
+    }
+
+    async function upsertDiaristaMasterRemote(item) {
+      if (!REMOTE_ENABLED) return;
+      await supabaseRequest('diarista_cadastros', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=representation',
+        body: [{
+          id: Number(item.id),
+          obra_diarista: item.obraDiarista || '',
+          nome_diarista: item.nomeDiarista || '',
+          status_diarista: item.statusDiarista || 'Ativo',
+          inicio_diarista: item.inicioDiarista || defaultMonth(),
+          fim_diarista: item.fimDiarista || ''
+        }]
+      });
+    }
+
+    async function upsertDiaristaMonthRemote(monthKey, diaristaId, entry) {
+      if (!REMOTE_ENABLED) return;
+      await supabaseRequest('diarista_month_entries', {
+        method: 'POST',
+        prefer: 'resolution=merge-duplicates,return=representation',
+        body: [{
+          month_key: monthKey,
+          diarista_id: Number(diaristaId),
+          pedido: entry.pedido || '',
+          valor: entry.valor == null ? null : Number(entry.valor),
+          protocolado: entry.protocolado || '',
+          link: entry.link || ''
+        }]
+      });
+    }
+
+    async function resetRemoteMonth(table, monthKey) {
+      if (!REMOTE_ENABLED) return;
+      await supabaseRequest(table, {
+        method: 'DELETE',
+        query: `month_key=eq.${encodeURIComponent(monthKey)}`
+      });
     }
 
     monthPicker.value = defaultMonth();
@@ -825,7 +1130,7 @@
       const override = ensureMonth(monthKey)[contract.id] || {};
       return {
         id: contract.id,
-        status: 'Ativo',
+        status: override.status || 'Ativo',
         obra: contract.obra,
         empresa: contract.empresa,
         vencimento: contract.vencimento,
@@ -1394,27 +1699,46 @@
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancel').addEventListener('click', closeModal);
 
-    document.getElementById('resetMonth').addEventListener('click', () => {
+    document.getElementById('resetMonth').addEventListener('click', async () => {
       const label = monthLabel(currentMonthKey());
       if (!window.confirm(`Deseja zerar todos os registros do mes ${label}?`)) return;
       monthOverrides[currentMonthKey()] = {};
       monthLines[currentMonthKey()] = [];
       selectedId = null;
+      saveLocalCache();
       render();
       renderDiarista();
+      try {
+        await Promise.all([
+          resetRemoteMonth('internet_month_entries', currentMonthKey()),
+          resetRemoteMonth('internet_lines', currentMonthKey())
+        ]);
+        setSyncStatus(`Mes ${label} zerado no Supabase`);
+      } catch (error) {
+        console.error(error);
+        setSyncStatus(`Falha ao zerar ${label} no Supabase. Cache local mantido.`);
+      }
     });
-    document.getElementById('resetDiarista').addEventListener('click', () => {
+    document.getElementById('resetDiarista').addEventListener('click', async () => {
       const label = monthLabel(currentMonthKey());
       if (!window.confirm(`Deseja zerar os registros da diarista do mes ${label}?`)) return;
       diaristaMonthOverrides[currentMonthKey()] = {};
+      saveLocalCache();
       renderDiarista();
+      try {
+        await resetRemoteMonth('diarista_month_entries', currentMonthKey());
+        setSyncStatus(`Diarista de ${label} zerada no Supabase`);
+      } catch (error) {
+        console.error(error);
+        setSyncStatus(`Falha ao zerar diarista de ${label}. Cache local mantido.`);
+      }
     });
 
-    document.getElementById('contractForm').addEventListener('submit', event => {
+    document.getElementById('contractForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const payload = {
-        id: editingContractId || Date.now(),
+        id: editingContractId || createId(),
         empresa: formData.empresaContrato,
         obra: formData.obraContrato,
         vencimento: formData.vencimentoContrato,
@@ -1433,15 +1757,23 @@
       }
       editingContractId = null;
       event.currentTarget.reset();
+      saveLocalCache();
       renderContracts();
       render();
+      try {
+        await upsertContractRemote(payload);
+        setSyncStatus(`Contrato ${payload.empresa} sincronizado com Supabase`);
+      } catch (error) {
+        console.error(error);
+        setSyncStatus(`Falha ao sincronizar contrato ${payload.empresa}. Cache local mantido.`);
+      }
     });
 
-    document.getElementById('diaristaForm').addEventListener('submit', event => {
+    document.getElementById('diaristaForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const payload = {
-        id: editingDiaristaMasterId || Date.now(),
+        id: editingDiaristaMasterId || createId(),
         obraDiarista: formData.obraDiarista,
         nomeDiarista: formData.nomeDiarista,
         statusDiarista: formData.statusDiarista,
@@ -1456,10 +1788,18 @@
       }
       editingDiaristaMasterId = null;
       event.currentTarget.reset();
+      saveLocalCache();
       renderDiarista();
+      try {
+        await upsertDiaristaMasterRemote(payload);
+        setSyncStatus(`Cadastro da diarista ${payload.obraDiarista} sincronizado`);
+      } catch (error) {
+        console.error(error);
+        setSyncStatus(`Falha ao sincronizar cadastro da diarista. Cache local mantido.`);
+      }
     });
 
-    document.getElementById('form').addEventListener('submit', event => {
+    document.getElementById('form').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const numericValue = formData.valor ? Number(formData.valor.replace(/\./g, '').replace(',', '.')) : null;
@@ -1468,7 +1808,7 @@
       let contract = contracts.find(item => item.id === contractId);
       if (!contract) {
         contract = {
-          id: Date.now(),
+          id: createId(),
           empresa: formData.empresa,
           obra: formData.obra,
           vencimento: formData.vencimento || '',
@@ -1488,7 +1828,8 @@
         contract.contato = formData.contato || '-';
         contract.obsContrato = formData.obs || '';
       }
-      ensureMonth(targetMonth)[contract.id] = {
+      const monthEntry = {
+        status: formData.status || 'Ativo',
         valor: Number.isFinite(numericValue) ? numericValue : null,
         pedido: formData.pedido || '',
         aprovado: formData.aprovado === 'pendente' ? null : formData.aprovado === 'sim',
@@ -1497,28 +1838,50 @@
         senhaAcesso: formData.senhaAcesso || '',
         obs: formData.obs || ''
       };
+      ensureMonth(targetMonth)[contract.id] = monthEntry;
       monthPicker.value = targetMonth;
       event.currentTarget.reset();
       closeModal();
+      saveLocalCache();
       render();
+      try {
+        await Promise.all([
+          upsertContractRemote(contract),
+          upsertMonthEntryRemote(targetMonth, contract.id, monthEntry)
+        ]);
+        setSyncStatus(`Registro de ${contract.empresa} sincronizado com Supabase`);
+      } catch (error) {
+        console.error(error);
+        setSyncStatus(`Falha ao sincronizar registro de ${contract.empresa}. Cache local mantido.`);
+      }
     });
 
     document.getElementById('activeLinesForm').elements.centroLinha.addEventListener('input', event => {
       document.getElementById('activeLinesForm').elements.percentualLinha.value = linePercent(event.target.value);
     });
 
-    document.getElementById('activeLinesForm').addEventListener('submit', event => {
+    document.getElementById('activeLinesForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
-      ensureMonthLines(currentMonthKey()).push({
+      const line = {
+        id: createId(),
         numero: formData.numeroLinha,
         responsavel: formData.responsavelLinha,
         centroCusto: formData.centroLinha,
         percentual: linePercent(formData.centroLinha)
-      });
+      };
+      ensureMonthLines(currentMonthKey()).push(line);
       event.currentTarget.reset();
       event.currentTarget.elements.percentualLinha.value = '';
+      saveLocalCache();
       render();
+      try {
+        await upsertLineRemote(currentMonthKey(), line);
+        setSyncStatus(`Linha ${line.numero} sincronizada com Supabase`);
+      } catch (error) {
+        console.error(error);
+        setSyncStatus(`Falha ao sincronizar linha ${line.numero}. Cache local mantido.`);
+      }
     });
 
     const diaristaModal = document.getElementById('diaristaModal');
@@ -1546,28 +1909,43 @@
         refreshProtectedViews();
       });
     });
-    document.getElementById('diaristaMonthForm').addEventListener('submit', event => {
+    document.getElementById('diaristaMonthForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const value = formData.valor ? Number(formData.valor.replace(/\./g, '').replace(',', '.')) : null;
-      ensureDiaristaMonth(currentMonthKey())[editingDiaristaId] = {
+      const diaristaId = editingDiaristaId;
+      const payload = {
         pedido: formData.pedido || '',
         valor: Number.isFinite(value) ? value : null,
         protocolado: formData.protocolado || '',
         link: formData.link || ''
       };
+      ensureDiaristaMonth(currentMonthKey())[diaristaId] = payload;
       closeDiaristaModal();
+      saveLocalCache();
       renderDiarista();
+      try {
+        await upsertDiaristaMonthRemote(currentMonthKey(), diaristaId, payload);
+        setSyncStatus('Diarista sincronizada com Supabase');
+      } catch (error) {
+        console.error(error);
+        setSyncStatus('Falha ao sincronizar diarista. Cache local mantido.');
+      }
     });
     document.getElementById('navInternet').addEventListener('click', () => switchModule('internet'));
     document.getElementById('navDiarista').addEventListener('click', () => switchModule('diarista'));
 
-    refreshProtectedViews();
-    openView('overview');
-    render();
-    openDiaristaView('overview');
-    renderDiarista();
-    switchModule('internet');
+    async function initializePortal() {
+      await bootstrapData();
+      refreshProtectedViews();
+      openView('overview');
+      render();
+      openDiaristaView('overview');
+      renderDiarista();
+      switchModule('internet');
+    }
+
+    initializePortal();
   </script>
 </body>
 </html>
