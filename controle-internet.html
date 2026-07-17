@@ -666,6 +666,7 @@
           <button class="toplink on" data-p-view="overview">Visao Geral</button>
           <button class="toplink" data-p-view="air">Aereo</button>
           <button class="toplink" data-p-view="road">Rodoviario</button>
+          <button class="toplink" data-p-view="cadastro">Cadastro</button>
         </div>
 
         <div class="view on" id="pview-overview">
@@ -674,7 +675,7 @@
             <p id="pPageSubtitle">Sincronize a API do portal MSE e complemente apenas os dados que nao vierem automaticamente.</p>
           </div>
 
-          <section class="kpis" style="grid-template-columns:repeat(5,1fr)">
+          <section class="kpis" style="grid-template-columns:repeat(6,1fr)">
             <div class="kpi">
               <div class="ktop"><div class="kicon blue" data-icon="fileText"></div><div class="klabel">Solicitacoes</div></div>
               <div class="kvalue" id="pTotal">0</div>
@@ -694,6 +695,11 @@
               <div class="ktop"><div class="kicon green" data-icon="dollar"></div><div class="klabel">Valor pago</div></div>
               <div class="kvalue" id="pPaid">R$ 0,00</div>
               <div class="kmeta">Total informado</div>
+            </div>
+            <div class="kpi">
+              <div class="ktop"><div class="kicon green" data-icon="badgeCheck"></div><div class="klabel">Economia</div></div>
+              <div class="kvalue" id="pSavings">R$ 0,00</div>
+              <div class="kmeta">Aprovado maior que pago</div>
             </div>
             <div class="kpi">
               <div class="ktop"><div class="kicon slate" data-icon="clipboard"></div><div class="klabel">Pendentes</div></div>
@@ -729,7 +735,8 @@
                     <th>Obra</th>
                     <th>Tipo</th>
                     <th>Modalidade</th>
-                    <th>Data</th>
+                    <th>Data da compra</th>
+                    <th>Valor aprovado</th>
                     <th>Valor pago</th>
                     <th>Localizador</th>
                     <th>Pedido</th>
@@ -760,9 +767,10 @@
                     <th>Obra</th>
                     <th>Funcao</th>
                     <th>Tipo</th>
-                    <th>Data</th>
+                    <th>Data da compra</th>
                     <th>Companhia</th>
                     <th>Localizador</th>
+                    <th>Valor aprovado</th>
                     <th>Valor</th>
                     <th>Acoes</th>
                   </tr>
@@ -790,14 +798,72 @@
                     <th>Obra</th>
                     <th>Funcao</th>
                     <th>Tipo</th>
-                    <th>Data</th>
+                    <th>Data da compra</th>
                     <th>Origem</th>
                     <th>Destino</th>
+                    <th>Valor aprovado</th>
                     <th>Valor</th>
                     <th>Acoes</th>
                   </tr>
                 </thead>
                 <tbody id="pRoadRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="view" id="pview-cadastro">
+          <div class="hero">
+            <h1>Cadastro de Passagens</h1>
+            <p>Cadastre manualmente as compras para testar o fluxo enquanto a API segue ativa em paralelo.</p>
+          </div>
+          <section class="card pad">
+            <div class="chead"><span class="ti2">Novo cadastro manual</span><span class="eyebrow">Base de teste</span></div>
+            <form id="passagensManualForm" class="formgrid">
+              <label>Data da compra<input name="dataCompra" type="date" required></label>
+              <label>Modalidade
+                <select name="modalidade" required>
+                  <option value="Aereo">Aereo</option>
+                  <option value="Rodoviario">Rodoviario</option>
+                </select>
+              </label>
+              <label>Obra<input name="nomeObra" required placeholder="Ex.: LMS"></label>
+              <label>Motivo / tipo<input name="tipo" required placeholder="Ex.: Visita, Folga, Desmobilizacao"></label>
+              <label>Passageiro<input name="nomeColab" required placeholder="Nome do colaborador"></label>
+              <label>Funcao<input name="nomeFuncao" placeholder="Ex.: Gerente I"></label>
+              <label>Origem<input name="origem" placeholder="Ex.: GRU"></label>
+              <label>Destino<input name="destino" placeholder="Ex.: AMS"></label>
+              <label>Data da viagem<input name="dataViagem" type="date"></label>
+              <label>Horario<input name="horario" placeholder="Ex.: 20:59 - 12:20"></label>
+              <label>Companhia<input name="companhia" placeholder="Ex.: LATAM"></label>
+              <label>Localizador<input name="localizador" placeholder="Ex.: ZHVOGT"></label>
+              <label>Numero do pedido<input name="numeroPedido" placeholder="Ex.: 110766"></label>
+              <label>Valor aprovado<input name="valorAprovado" placeholder="Ex.: 18000,00"></label>
+              <label>Valor pago<input name="valorPago" placeholder="Ex.: 16451,16"></label>
+              <label style="grid-column:1 / -1">Observacao<input name="observacao" placeholder="Ex.: compra concluida no portal"></label>
+              <footer style="grid-column:1 / -1">
+                <button class="primary" type="submit"><span data-icon="plus"></span>Salvar cadastro manual</button>
+              </footer>
+            </form>
+          </section>
+          <section class="card table-card" style="margin-top:14px">
+            <div class="pad">
+              <div class="chead"><span class="ti2">Cadastros do mes</span><span class="eyebrow" id="pCadastroCount">0 registros</span></div>
+            </div>
+            <div style="overflow:auto">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Data da compra</th>
+                    <th>Colaborador</th>
+                    <th>Obra</th>
+                    <th>Modalidade</th>
+                    <th>Valor aprovado</th>
+                    <th>Valor pago</th>
+                    <th>Acoes</th>
+                  </tr>
+                </thead>
+                <tbody id="pCadastroRows"></tbody>
               </table>
             </div>
           </section>
@@ -1271,6 +1337,7 @@
     <div class="dialog wide">
       <div class="chead"><span class="ti2" id="passagensEditTitle">Complementar dados da passagem</span><button class="rowact" type="button" id="closePassagensEditModal" aria-label="Fechar" data-icon="close"></button></div>
       <form id="passagensEditForm" class="formgrid">
+        <label>Data da compra<input name="dataCompra" type="date"></label>
         <label>Modalidade
           <select name="modalidade" required>
             <option value="Aereo">Aereo</option>
@@ -1283,6 +1350,7 @@
         <label>Horario<input name="horario" placeholder="Ex.: 20:59 - 12:20"></label>
         <label>Companhia<input name="companhia" placeholder="Ex.: LATAM"></label>
         <label>Localizador<input name="localizador" placeholder="Ex.: ZHVOGT"></label>
+        <label>Valor aprovado<input name="valorAprovado" placeholder="Ex.: 18000,00"></label>
         <label>Valor pago<input name="valorPago" placeholder="Ex.: 16451,16"></label>
         <label style="grid-column:1 / -1">Observacao interna<input name="observacaoInterna" placeholder="Ex.: emitida, remarcada, retorno aguardando..."></label>
         <footer style="grid-column:1 / -1">
@@ -1636,12 +1704,14 @@
         if (!item.key) return;
         passagensComplements[item.key] = {
           modalidade: item.modalidade || '',
+          dataCompra: item.dataCompra ?? item.data_compra ?? '',
           origem: item.origem || '',
           destino: item.destino || '',
           horario: item.horario || '',
           companhia: item.companhia || '',
           localizador: item.localizador || '',
           numeroPedido: item.numeroPedido ?? item.numero_pedido ?? '',
+          valorAprovado: item.valorAprovado ?? item.valor_aprovado ?? '',
           valorPago: item.valorPago ?? item.valor_pago ?? '',
           observacaoInterna: item.observacaoInterna ?? item.observacao_interna ?? ''
         };
@@ -2840,6 +2910,10 @@
       return `${item.tabela || 'passagens'}:${item.id}`;
     }
 
+    function passagemCompraDate(item, complement = getPassagemComplement(item)) {
+      return complement.dataCompra || item.data_compra || item.dataCompra || '';
+    }
+
     function passagemDateField(item) {
       return item.data_prevista || item.data_proxima || item.data_ida || item.data_chegada || '';
     }
@@ -2868,8 +2942,12 @@
       const complement = getPassagemComplement(item);
       const modalidade = inferPassagemMode(item, complement);
       const valorApi = parseMoney(item.valor_pago) ?? parseMoney(item.valor_aereo) ?? parseMoney(item.valor_rodoviario) ?? parseMoney(item.valor_referencia);
+      const valorAprovadoApi = parseMoney(item.valor_aprovado) ?? parseMoney(item.valor_referencia);
+      const valorAprovadoComplemento = parseMoney(complement.valorAprovado);
+      const valorAprovado = valorAprovadoComplemento ?? valorAprovadoApi;
       const valorComplemento = parseMoney(complement.valorPago);
       const valorPago = valorComplemento ?? valorApi;
+      const dataCompra = passagemCompraDate(item, complement);
       const pedido = complement.numeroPedido || '';
       const localizador = complement.localizador || '';
       const companhia = complement.companhia || '';
@@ -2877,7 +2955,9 @@
       const destino = complement.destino || '';
       const horario = complement.horario || '';
       const observacao = complement.observacaoInterna || item.observacao || '';
+      const economia = valorAprovado != null && valorPago != null && valorPago < valorAprovado ? valorAprovado - valorPago : 0;
       const pending =
+        !dataCompra ||
         modalidade === 'A definir' ||
         !pedido ||
         (modalidade === 'Aereo' && (!localizador || !companhia)) ||
@@ -2886,6 +2966,8 @@
         ...item,
         key: passagemKey(item),
         modalidade,
+        dataCompra,
+        valorAprovado,
         valorPago,
         pedido,
         localizador,
@@ -2895,13 +2977,14 @@
         horario,
         observacao,
         dataPrincipal: passagemDateField(item),
+        economia,
         pending
       };
     }
 
     function currentPassagensData() {
       return passagensRows
-        .filter(item => monthKeyFromDate(passagemDateField(item)) === currentPassagensMonth())
+        .filter(item => monthKeyFromDate(passagemCompraDate(item)) === currentPassagensMonth())
         .map(buildPassagemRow);
     }
 
@@ -2940,9 +3023,10 @@
           <td>${row.nome_obra || '-'}</td>
           <td>${row.nome_funcao || '-'}</td>
           <td>${row.tipo || '-'}</td>
-          <td>${formatDate(row.dataPrincipal)}</td>
+          <td>${formatDate(row.dataCompra)}</td>
           <td>${row.companhia || '-'}</td>
           <td>${row.localizador || '-'}</td>
+          <td class="money">${row.valorAprovado == null ? '-' : brl(row.valorAprovado)}</td>
           <td class="money">${row.valorPago == null ? '-' : brl(row.valorPago)}</td>
           <td class="actioncell"><button class="rowact" title="Complementar passagem" aria-label="Complementar passagem" onclick="editPassagem('${row.key}')">${icon('edit')}</button></td>
         </tr>
@@ -2954,9 +3038,10 @@
             <td>${row.nome_obra || '-'}</td>
             <td>${row.nome_funcao || '-'}</td>
             <td>${row.tipo || '-'}</td>
-            <td>${formatDate(row.dataPrincipal)}</td>
+            <td>${formatDate(row.dataCompra)}</td>
             <td>${row.origem || '-'}</td>
             <td>${row.destino || '-'}</td>
+            <td class="money">${row.valorAprovado == null ? '-' : brl(row.valorAprovado)}</td>
             <td class="money">${row.valorPago == null ? '-' : brl(row.valorPago)}</td>
             <td class="actioncell"><button class="rowact" title="Complementar passagem" aria-label="Complementar passagem" onclick="editPassagem('${row.key}')">${icon('edit')}</button></td>
           </tr>
@@ -2969,7 +3054,8 @@
             <td>${row.nome_obra || '-'}</td>
             <td>${row.tipo || '-'}</td>
             <td><span class="tag ${row.modalidade === 'A definir' ? 'warn' : 'ok'}">${row.modalidade}</span></td>
-            <td>${formatDate(row.dataPrincipal)}</td>
+            <td>${formatDate(row.dataCompra)}</td>
+            <td class="money">${row.valorAprovado == null ? '-' : brl(row.valorAprovado)}</td>
             <td class="money">${row.valorPago == null ? '-' : brl(row.valorPago)}</td>
             <td>${row.localizador || '-'}</td>
             <td>${row.pedido || '<span class="pending">Pendente</span>'}</td>
@@ -2985,6 +3071,7 @@
       const airRows = filteredPassagens(rows, 'air');
       const roadRows = filteredPassagens(rows, 'road');
       const totalPaid = rows.reduce((sum, row) => sum + (row.valorPago || 0), 0);
+      const totalSavings = rows.reduce((sum, row) => sum + (row.economia || 0), 0);
       const pending = rows.filter(row => row.pending).length;
       const byObra = {};
       const byTipo = {};
@@ -2999,12 +3086,13 @@
       pMonthPicker.value = currentPassagensMonth();
       document.getElementById('pPageTitle').textContent = `Controle de Passagens | ${monthLabel(currentPassagensMonth())}`;
       document.getElementById('pPageSubtitle').textContent = rows.length
-        ? `Solicitacoes importadas da API para ${monthLabel(currentPassagensMonth())}. Complete localizador, pedido e detalhes finais quando necessario.`
-        : `Nenhuma solicitacao sincronizada para ${monthLabel(currentPassagensMonth())}. Use a configuracao da API e sincronize o mes.`;
+        ? `Solicitacoes filtradas pela data da compra em ${monthLabel(currentPassagensMonth())}. Complete localizador, pedido e detalhes finais quando necessario.`
+        : `Nenhuma solicitacao com data da compra em ${monthLabel(currentPassagensMonth())}. Use o cadastro manual para testar ou complemente os itens da API.`;
       document.getElementById('pTotal').textContent = rows.length;
       document.getElementById('pAir').textContent = rows.filter(row => row.modalidade === 'Aereo').length;
       document.getElementById('pRoad').textContent = rows.filter(row => row.modalidade === 'Rodoviario').length;
       document.getElementById('pPaid').textContent = brl(totalPaid);
+      document.getElementById('pSavings').textContent = brl(totalSavings);
       document.getElementById('pPending').textContent = pending;
       document.getElementById('pCountLabel').textContent = `${filtered.length} registros filtrados`;
       document.getElementById('pFootCount').textContent = `${rows.length} item(ns) no mes`;
@@ -3035,6 +3123,10 @@
           <span class="tag ${passagensApiToken ? 'ok' : 'warn'}">${passagensApiToken ? 'OK' : 'Pendente'}</span>
         </div>
         <div class="li">
+          <div><b class="link">Economia do mes</b><div class="lisub">${rows.filter(row => row.economia > 0).length} passagem(ns) com valor pago menor que o aprovado</div></div>
+          <span class="tag ${totalSavings > 0 ? 'ok' : 'neutral'}">${totalSavings > 0 ? brl(totalSavings) : 'Sem economia'}</span>
+        </div>
+        <div class="li">
           <div><b class="link">Complementos internos</b><div class="lisub">${pending} passagem(ns) ainda precisam de pedido, localizador ou rota final</div></div>
           <span class="tag ${pending ? 'warn' : 'ok'}">${pending ? 'Revisar' : 'Completo'}</span>
         </div>
@@ -3044,9 +3136,22 @@
         </div>
       ` : `<div class="empty-state"><b>Modulo pronto para uso.</b>Configure a API e sincronize as solicitacoes de passagem para popular o painel.</div>`;
 
-      renderPassagensTable('pRows', filtered, 9);
-      renderPassagensTable('pAirRows', airRows, 9);
-      renderPassagensTable('pRoadRows', roadRows, 9);
+      renderPassagensTable('pRows', filtered, 10);
+      renderPassagensTable('pAirRows', airRows, 10);
+      renderPassagensTable('pRoadRows', roadRows, 10);
+      const cadastroRows = rows.filter(row => row.tabela === 'manual' || row.key.startsWith('manual:'));
+      document.getElementById('pCadastroCount').textContent = `${cadastroRows.length} registros`;
+      document.getElementById('pCadastroRows').innerHTML = cadastroRows.length ? cadastroRows.map(row => `
+        <tr>
+          <td>${formatDate(row.dataCompra)}</td>
+          <td><span class="company">${row.nome_colab || row.nome || '-'}</span></td>
+          <td>${row.nome_obra || '-'}</td>
+          <td>${row.modalidade}</td>
+          <td class="money">${row.valorAprovado == null ? '-' : brl(row.valorAprovado)}</td>
+          <td class="money">${row.valorPago == null ? '-' : brl(row.valorPago)}</td>
+          <td class="actioncell"><button class="rowact" title="Editar cadastro manual" aria-label="Editar cadastro manual" onclick="editPassagem('${row.key}')">${icon('edit')}</button></td>
+        </tr>
+      `).join('') : `<tr><td colspan="7"><div class="empty-state"><b>Nenhum cadastro manual neste mes.</b>Use esta aba para testar enquanto a API ainda nao devolve a data da compra.</div></td></tr>`;
     }
 
     async function syncPassagensData() {
@@ -3093,6 +3198,7 @@
       if (!item) return;
       editingPassagemKey = key;
       const form = document.getElementById('passagensEditForm');
+      form.elements.dataCompra.value = item.dataCompra || '';
       form.elements.modalidade.value = item.modalidade === 'A definir' ? 'Aereo' : item.modalidade;
       form.elements.numeroPedido.value = item.pedido || '';
       form.elements.origem.value = item.origem || '';
@@ -3100,6 +3206,7 @@
       form.elements.horario.value = item.horario || '';
       form.elements.companhia.value = item.companhia || '';
       form.elements.localizador.value = item.localizador || '';
+      form.elements.valorAprovado.value = item.valorAprovado == null ? '' : String(item.valorAprovado).replace('.', ',');
       form.elements.valorPago.value = item.valorPago == null ? '' : String(item.valorPago).replace('.', ',');
       form.elements.observacaoInterna.value = item.observacao || '';
       document.getElementById('passagensEditTitle').textContent = `Complementar passagem | ${item.nome_colab || item.nome || '-'}`;
@@ -3605,21 +3712,68 @@
       closeModalById('passagensConfigModal');
       setSyncStatus('Configuracao da API de passagens atualizada no navegador');
     });
+    document.getElementById('passagensManualForm').addEventListener('submit', event => {
+      event.preventDefault();
+      const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const manualId = createId();
+      passagensRows.push({
+        id: manualId,
+        tabela: 'manual',
+        tipo: formData.tipo || '',
+        nome_colab: formData.nomeColab || '',
+        nome: formData.nomeColab || '',
+        nome_obra: formData.nomeObra || '',
+        nome_funcao: formData.nomeFuncao || '',
+        data_compra: formData.dataCompra || '',
+        data_prevista: formData.dataViagem || '',
+        data_ida: formData.dataViagem || '',
+        observacao: formData.observacao || ''
+      });
+      passagensComplements[`manual:${manualId}`] = {
+        modalidade: formData.modalidade || '',
+        dataCompra: formData.dataCompra || '',
+        origem: formData.origem || '',
+        destino: formData.destino || '',
+        horario: formData.horario || '',
+        companhia: formData.companhia || '',
+        localizador: formData.localizador || '',
+        numeroPedido: formData.numeroPedido || '',
+        valorAprovado: formData.valorAprovado || '',
+        valorPago: formData.valorPago || '',
+        observacaoInterna: formData.observacao || ''
+      };
+      event.currentTarget.reset();
+      saveLocalCache();
+      openPassagensView('overview');
+      renderPassagens();
+      setSyncStatus('Cadastro manual de passagem salvo para teste');
+    });
     document.getElementById('passagensEditForm').addEventListener('submit', event => {
       event.preventDefault();
       if (!editingPassagemKey) return;
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const currentComplement = passagensComplements[editingPassagemKey] || {};
       passagensComplements[editingPassagemKey] = {
+        ...currentComplement,
         modalidade: formData.modalidade || '',
+        dataCompra: formData.dataCompra || '',
         numeroPedido: formData.numeroPedido || '',
         origem: formData.origem || '',
         destino: formData.destino || '',
         horario: formData.horario || '',
         companhia: formData.companhia || '',
         localizador: formData.localizador || '',
+        valorAprovado: formData.valorAprovado || '',
         valorPago: formData.valorPago || '',
         observacaoInterna: formData.observacaoInterna || ''
       };
+      if (editingPassagemKey.startsWith('manual:')) {
+        const row = passagensRows.find(item => passagemKey(item) === editingPassagemKey);
+        if (row) {
+          row.data_compra = formData.dataCompra || row.data_compra || '';
+          row.observacao = formData.observacaoInterna || row.observacao || '';
+        }
+      }
       editingPassagemKey = '';
       saveLocalCache();
       renderPassagens();
