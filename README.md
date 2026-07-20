@@ -1,56 +1,102 @@
 # Portal-MSE
 
-Portal administrativo em Streamlit com interface HTML/CSS customizada para os modulos:
+Portal administrativo com interface HTML/CSS customizada e backend Flask,
+persistindo os dados em um banco **MySQL**. Módulos:
 
 - `Controle de Telefonia e Internet`
 - `Controle da Diarista`
 - `Controle de Passagens`
 
+## Arquitetura
+
+Antes o front-end conversava direto com o **Supabase** (PostgREST) a partir do
+navegador. Como o navegador não fala diretamente com o MySQL, agora existe um
+**servidor único em Flask** (`app.py`) que:
+
+- serve o portal (`controle-internet.html`) com a configuração injetada;
+- expõe uma **API REST** (subconjunto compatível com o formato antigo) que lê e
+  grava no MySQL.
+
+```
+Navegador (controle-internet.html)
+        │  fetch /rest/v1/<tabela>
+        ▼
+Flask (app.py)  ──►  MySQL (controle_internet_prod)
+```
+
+### Endpoints da API
+
+| Método | Rota                    | Uso                                                        |
+| ------ | ----------------------- | ---------------------------------------------------------- |
+| GET    | `/`                     | Portal HTML com config injetada                            |
+| GET    | `/health`               | Healthcheck + teste de conexão ao banco                    |
+| GET    | `/rest/v1/<tabela>`     | `SELECT *` com `?select=*&order=coluna.asc,...`            |
+| POST   | `/rest/v1/<tabela>`     | Upsert (`INSERT ... ON DUPLICATE KEY UPDATE`)              |
+| DELETE | `/rest/v1/<tabela>`     | `DELETE` com filtro `?coluna=eq.valor`                     |
+
+## Banco de dados
+
+Aplique o schema no banco de produção:
+
+```bash
+mysql -h dbsubdominios.portalmse.com.br -u controle_internet_prod -p controle_internet < mysql-schema.sql
+```
+
+> O banco de dados é `controle_internet` e o usuário de acesso é
+> `controle_internet_prod`. Ajuste `DB_NAME`/`DB_USER` no `.env` se mudar.
+
 ## Como rodar localmente
 
 ```bash
 pip install -r requirements.txt
-streamlit run app.py
+copy .env.example .env   # (Windows) e edite os valores
+python app.py
 ```
 
-## Como configurar o Supabase
+Acesse http://localhost:8000
 
-1. Crie um projeto no Supabase.
-2. Rode o SQL de [supabase-schema.sql](/C:/Users/notebook/Documents/Conferencia%20Cartão/supabase-schema.sql).
-3. Configure as credenciais publicas no Streamlit:
+## Configuração
 
-```toml
-# .streamlit/secrets.toml
-supabase_url = "https://SEU-PROJETO.supabase.co"
-supabase_anon_key = "SUA_CHAVE_ANON"
-```
+Todas as credenciais vêm de variáveis de ambiente (arquivo `.env`, veja
+[.env.example](.env.example)):
 
-Voce tambem pode usar variaveis de ambiente:
+- `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+- `PASSAGENS_API_BASE_URL`, `PASSAGENS_API_TOKEN`
+- `PORTAL_API_BASE_URL` (vazio = mesma origem)
+- `PORT`, `FLASK_DEBUG`
+
+## Deploy na AWS
+
+Servidor único, então basta um processo WSGI atrás de um proxy:
 
 ```bash
-SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
+gunicorn app:app --bind 0.0.0.0:8000 --workers 3
 ```
 
-## Comportamento atual
+Sugestões:
+
+- **EC2** (ou Elastic Beanstalk Python): `gunicorn app:app` + Nginx na frente.
+- Banco em **Amazon RDS MySQL** — basta apontar `DB_HOST`/`DB_NAME`/credenciais.
+- Configure as variáveis via ambiente/Secrets Manager (não versione o `.env`).
+
+## Comportamento
 
 - O layout continua 100% no arquivo HTML.
-- Quando o Supabase estiver configurado, o portal passa a ler e gravar direto nele.
-- O modulo de `Passagens` tambem sincroniza:
-  - linhas importadas da API
-  - complementos manuais
-  - creditos cadastrados
-- Se o Supabase nao estiver configurado ou ficar indisponivel, o portal usa cache local do navegador para nao quebrar a interface.
-- As abas protegidas continuam usando:
-  - Usuario: `ADM`
-  - Senha: `mse2026`
+- O portal lê e grava direto no MySQL via API do próprio servidor.
+- Se o banco ficar indisponível, o portal usa cache local do navegador para não
+  quebrar a interface.
+- O módulo de `Passagens` também sincroniza linhas importadas da API externa,
+  complementos manuais e créditos cadastrados.
+- Abas protegidas continuam usando: usuário `ADM`, senha `mse2026`.
 
 ## Estrutura principal
 
-- [app.py](/C:/Users/notebook/Documents/Conferencia%20Cartão/app.py): wrapper Streamlit que injeta a configuracao no HTML.
-- [controle-internet.html](/C:/Users/notebook/Documents/Conferencia%20Cartão/controle-internet.html): layout, interacoes e sincronizacao com Supabase.
-- [supabase-schema.sql](/C:/Users/notebook/Documents/Conferencia%20Cartão/supabase-schema.sql): schema das tabelas usadas pelo portal.
+- [app.py](app.py): servidor Flask (portal + API REST → MySQL).
+- [controle-internet.html](controle-internet.html): layout e interações.
+- [mysql-schema.sql](mysql-schema.sql): schema das tabelas no MySQL.
 
-## Observacao importante
+## Observação de segurança
 
-O acesso protegido por `ADM / mse2026` protege a navegacao do portal, mas nao substitui uma modelagem de seguranca mais forte no banco. Para uma fase futura, o ideal e mover a escrita sensivel para um backend autenticado com regras mais fechadas.
+O acesso `ADM / mse2026` protege a navegação, mas não substitui uma modelagem de
+segurança mais forte. Para produção, considere autenticação real no backend e um
+usuário MySQL com privilégios mínimos restrito a este banco.

@@ -1634,11 +1634,10 @@
     const PROTECTED_USER = 'ADM';
     const PROTECTED_PASS = 'mse2026';
     const portalConfig = window.PORTAL_CONFIG || {};
-    const supabaseConfig = portalConfig.supabase || {};
+    const apiConfig = portalConfig.api || {};
     const passagensConfig = portalConfig.passagens || {};
-    const SUPABASE_URL = (supabaseConfig.url || '').replace(/\/+$/, '');
-    const SUPABASE_ANON_KEY = supabaseConfig.anonKey || '';
-    const REMOTE_ENABLED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+    const API_BASE_URL = (apiConfig.baseUrl || '').replace(/\/+$/, '');
+    const REMOTE_ENABLED = apiConfig.enabled !== false;
     const LOCAL_CACHE_KEY = 'portal-mse-cache-v2';
     const monthPicker = document.getElementById('monthPicker');
     const monthOverrides = {};
@@ -1920,14 +1919,11 @@
     }
 
     function buildApiUrl(table, query = '') {
-      return `${SUPABASE_URL}/rest/v1/${table}${query ? `?${query}` : ''}`;
+      return `${API_BASE_URL}/rest/v1/${table}${query ? `?${query}` : ''}`;
     }
 
-    async function supabaseRequest(table, { method = 'GET', query = '', body = null, prefer = '' } = {}) {
-      const headers = {
-        apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
-      };
+    async function apiRequest(table, { method = 'GET', query = '', body = null, prefer = '' } = {}) {
+      const headers = {};
       if (body !== null) headers['Content-Type'] = 'application/json';
       if (prefer) headers.Prefer = prefer;
       const response = await fetch(buildApiUrl(table, query), {
@@ -1946,16 +1942,16 @@
 
     async function loadRemoteState() {
       const [remoteContracts, remoteMonthEntries, remoteLines, remoteDiarista, remoteDiaristaEntries, remoteHitachi, remoteHitachiCompanyDocs, remotePassagensRows, remotePassagensComplements, remotePassagensCreditos] = await Promise.all([
-        supabaseRequest('internet_contracts', { query: 'select=*&order=id.asc' }),
-        supabaseRequest('internet_month_entries', { query: 'select=*&order=month_key.asc,contract_id.asc' }),
-        supabaseRequest('internet_lines', { query: 'select=*&order=month_key.asc,id.asc' }),
-        supabaseRequest('diarista_cadastros', { query: 'select=*&order=id.asc' }),
-        supabaseRequest('diarista_month_entries', { query: 'select=*&order=month_key.asc,diarista_id.asc' }),
-        supabaseRequest('hitachi_collaborators', { query: 'select=*&order=month_key.desc,empresa.asc,colaborador.asc' }),
-        supabaseRequest('hitachi_company_docs', { query: 'select=*&order=month_key.desc,empresa.asc,documento.asc' }),
-        supabaseRequest('passagens_rows', { query: 'select=*&order=updated_at.asc' }),
-        supabaseRequest('passagens_complements', { query: 'select=*&order=updated_at.asc' }),
-        supabaseRequest('passagens_creditos', { query: 'select=*&order=updated_at.asc' })
+        apiRequest('internet_contracts', { query: 'select=*&order=id.asc' }),
+        apiRequest('internet_month_entries', { query: 'select=*&order=month_key.asc,contract_id.asc' }),
+        apiRequest('internet_lines', { query: 'select=*&order=month_key.asc,id.asc' }),
+        apiRequest('diarista_cadastros', { query: 'select=*&order=id.asc' }),
+        apiRequest('diarista_month_entries', { query: 'select=*&order=month_key.asc,diarista_id.asc' }),
+        apiRequest('hitachi_collaborators', { query: 'select=*&order=month_key.desc,empresa.asc,colaborador.asc' }),
+        apiRequest('hitachi_company_docs', { query: 'select=*&order=month_key.desc,empresa.asc,documento.asc' }),
+        apiRequest('passagens_rows', { query: 'select=*&order=updated_at.asc' }),
+        apiRequest('passagens_complements', { query: 'select=*&order=updated_at.asc' }),
+        apiRequest('passagens_creditos', { query: 'select=*&order=updated_at.asc' })
       ]);
       return {
         contracts: remoteContracts,
@@ -1987,22 +1983,22 @@
           ) {
             syncPassagensStorageRemote().catch(error => console.error(error));
           }
-          setSyncStatus('Ultima atualizacao via Supabase');
+          setSyncStatus('Ultima atualizacao via banco MySQL');
           return;
         } catch (error) {
           console.error(error);
           hydrateState(localPayload);
-          setSyncStatus('Supabase indisponivel. Usando cache local.');
+          setSyncStatus('Banco indisponivel. Usando cache local.');
           return;
         }
       }
       hydrateState(localPayload);
-      setSyncStatus('Supabase nao configurado. Usando modo local.');
+      setSyncStatus('Banco nao configurado. Usando modo local.');
     }
 
     async function upsertContractRemote(contract) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('internet_contracts', {
+      await apiRequest('internet_contracts', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2022,7 +2018,7 @@
 
     async function upsertMonthEntryRemote(monthKey, contractId, entry) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('internet_month_entries', {
+      await apiRequest('internet_month_entries', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2042,7 +2038,7 @@
 
     async function upsertLineRemote(monthKey, line) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('internet_lines', {
+      await apiRequest('internet_lines', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2065,7 +2061,7 @@
 
     async function upsertDiaristaMasterRemote(item) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('diarista_cadastros', {
+      await apiRequest('diarista_cadastros', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2081,7 +2077,7 @@
 
     async function upsertDiaristaMonthRemote(monthKey, diaristaId, entry) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('diarista_month_entries', {
+      await apiRequest('diarista_month_entries', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2097,7 +2093,7 @@
 
     async function upsertHitachiRemote(item) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('hitachi_collaborators', {
+      await apiRequest('hitachi_collaborators', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2116,7 +2112,7 @@
 
     async function upsertHitachiCompanyDocRemote(item) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('hitachi_company_docs', {
+      await apiRequest('hitachi_company_docs', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2131,7 +2127,7 @@
 
     async function upsertPassagemRowRemote(item) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('passagens_rows', {
+      await apiRequest('passagens_rows', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2144,7 +2140,7 @@
 
     async function upsertPassagemComplementRemote(key, data) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('passagens_complements', {
+      await apiRequest('passagens_complements', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2156,7 +2152,7 @@
 
     async function upsertPassagemCreditoRemote(item) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest('passagens_creditos', {
+      await apiRequest('passagens_creditos', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
@@ -2177,7 +2173,7 @@
 
     async function resetRemoteMonth(table, monthKey) {
       if (!REMOTE_ENABLED) return;
-      await supabaseRequest(table, {
+      await apiRequest(table, {
         method: 'DELETE',
         query: `month_key=eq.${encodeURIComponent(monthKey)}`
       });
