@@ -315,7 +315,6 @@
       <div class="monthbar">
         <div class="search"><span data-icon="search"></span><input id="q" placeholder="Buscar por empresa, obra, contrato ou contato..."></div>
         <div class="selectbox"><span data-icon="calendar"></span><input id="monthPicker" type="month"></div>
-        <button class="danger" id="resetMonth"><span data-icon="trash"></span>Zerar mes</button>
         <button class="primary" id="addBtn"><span data-icon="plus"></span>Novo registro</button>
       </div>
 
@@ -1674,6 +1673,7 @@
     const monthPicker = document.getElementById('monthPicker');
     const monthOverrides = {};
     const monthLines = {};
+    const GLOBAL_LINES_KEY = '__global__';
     const contracts = [];
     const diaristaMasters = [];
     const diaristaMonthOverrides = {};
@@ -1832,7 +1832,7 @@
         monthLines: Object.entries(monthLines).flatMap(([monthKey, lines]) =>
           lines.map(line => ({
             id: Number(line.id),
-            month_key: monthKey,
+            month_key: GLOBAL_LINES_KEY,
             numero: line.numero || '',
             responsavel: line.responsavel || '',
             status: line.status || 'Ativo',
@@ -1896,7 +1896,7 @@
 
       clearObject(monthLines);
       (payload.monthLines || []).forEach(entry => {
-        ensureMonthLines(entry.month_key).push({
+        ensureMonthLines().push({
           id: Number(entry.id),
           numero: entry.numero || '',
           responsavel: entry.responsavel || '',
@@ -2025,7 +2025,7 @@
       const [remoteContracts, remoteMonthEntries, remoteLines, remoteDiarista, remoteDiaristaEntries, remoteHitachi, remoteHitachiCompanyDocs, remotePassagensRows, remotePassagensComplements, remotePassagensCreditos] = await Promise.all([
         apiRequest('internet_contracts', { query: 'select=*&order=id.asc' }),
         apiRequest('internet_month_entries', { query: 'select=*&order=month_key.asc,contract_id.asc' }),
-        apiRequest('internet_lines', { query: 'select=*&order=month_key.asc,id.asc' }),
+        apiRequest('internet_lines', { query: 'select=*&order=id.asc' }),
         apiRequest('diarista_cadastros', { query: 'select=*&order=id.asc' }),
         apiRequest('diarista_month_entries', { query: 'select=*&order=month_key.asc,diarista_id.asc' }),
         apiRequest('hitachi_collaborators', { query: 'select=*&order=month_key.desc,empresa.asc,colaborador.asc' }),
@@ -2121,14 +2121,14 @@
       });
     }
 
-    async function upsertLineRemote(monthKey, line) {
+    async function upsertLineRemote(line) {
       if (!REMOTE_ENABLED) return;
       await apiRequest('internet_lines', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates,return=representation',
         body: [{
           id: Number(line.id),
-          month_key: monthKey,
+          month_key: GLOBAL_LINES_KEY,
           numero: line.numero || '',
           responsavel: line.responsavel || '',
           status: line.status || 'Ativo',
@@ -2138,10 +2138,18 @@
       });
     }
 
-    async function syncMonthLinesRemote(monthKey) {
+    async function syncMonthLinesRemote() {
       if (!REMOTE_ENABLED) return;
-      const lines = recalculateLinePercentages(monthKey);
-      await Promise.all(lines.map(line => upsertLineRemote(monthKey, line)));
+      const lines = recalculateLinePercentages();
+      await Promise.all(lines.map(line => upsertLineRemote(line)));
+    }
+
+    async function deleteLineRemote(lineId) {
+      if (!REMOTE_ENABLED) return;
+      await apiRequest('internet_lines', {
+        method: 'DELETE',
+        query: `id=eq.${encodeURIComponent(Number(lineId))}`
+      });
     }
 
     async function upsertDiaristaMasterRemote(item) {
@@ -2285,9 +2293,9 @@
       return monthOverrides[monthKey];
     }
 
-    function ensureMonthLines(monthKey) {
-      if (!monthLines[monthKey]) monthLines[monthKey] = [];
-      return monthLines[monthKey];
+    function ensureMonthLines() {
+      if (!monthLines[GLOBAL_LINES_KEY]) monthLines[GLOBAL_LINES_KEY] = [];
+      return monthLines[GLOBAL_LINES_KEY];
     }
 
     function ensureDiaristaMonth(monthKey) {
@@ -2399,8 +2407,8 @@
       return value.toFixed(2).replace('.', ',');
     }
 
-    function recalculateLinePercentages(monthKey) {
-      const lines = ensureMonthLines(monthKey);
+    function recalculateLinePercentages() {
+      const lines = ensureMonthLines();
       const counts = {};
       lines
         .filter(line => (line.status || 'Ativo') === 'Ativo')
@@ -2434,7 +2442,7 @@
 
     function previewLinePercent(centerValue, statusValue, lineId = null) {
       if (statusValue === 'Inativo') return 'Inativa';
-      const draft = ensureMonthLines(currentMonthKey())
+      const draft = ensureMonthLines()
         .filter(line => line.id !== lineId)
         .map(line => ({ ...line }));
       draft.push({
@@ -2575,7 +2583,7 @@
 
     function renderKpis(rows) {
       const info = kpiData(rows);
-      const lines = ensureMonthLines(currentMonthKey());
+      const lines = ensureMonthLines();
       document.getElementById('kActive').textContent = info.active;
       document.getElementById('kCost').textContent = brl(info.totalValue);
       document.getElementById('kOperators').textContent = info.operators;
@@ -2645,13 +2653,13 @@
     }
 
     function renderActiveLines(rows) {
-      const lines = recalculateLinePercentages(currentMonthKey());
+      const lines = recalculateLinePercentages();
       const activeLines = lines.filter(line => (line.status || 'Ativo') === 'Ativo');
       const summary = document.getElementById('activeLines');
       const accessSummary = document.getElementById('activeSummary');
       const credentials = document.getElementById('credentialsList');
       const rateioBars = document.getElementById('lineRateioBars');
-      document.getElementById('accessMonthLabel').textContent = monthLabel(currentMonthKey());
+      document.getElementById('accessMonthLabel').textContent = 'Todas as competencias';
       if (!lines.length) {
         summary.innerHTML = `<div class="empty-state"><b>Sem linhas ativas cadastradas.</b>Cadastre as linhas diretamente nesta aba protegida.</div>`;
         accessSummary.innerHTML = `<div class="empty-state"><b>Nenhuma linha listada.</b>Cadastre linhas ativas para montar o resumo operacional.</div>`;
@@ -2682,7 +2690,7 @@
         }).join('');
       }
       if (!activeLines.length) {
-        summary.innerHTML = `<div class="empty-state"><b>Sem linhas ativas neste mes.</b>As linhas cadastradas estao marcadas como inativas.</div>`;
+        summary.innerHTML = `<div class="empty-state"><b>Sem linhas ativas.</b>As linhas cadastradas estao marcadas como inativas.</div>`;
       } else {
         summary.innerHTML = activeLines.slice(0, 4).map(line => `
         <div class="li">
@@ -2704,6 +2712,7 @@
           <div class="cred-row"><span>Percentual</span><b>${line.percentual || '-'}</b></div>
           <div style="margin-top:10px;display:flex;justify-content:flex-end">
             <button class="inline-btn" type="button" onclick="editActiveLine(${line.id})">Editar linha</button>
+            <button class="inline-btn" type="button" onclick="deleteActiveLine(${line.id})" style="margin-left:8px">Excluir linha</button>
           </div>
         </div>
       `).join('');
@@ -4017,7 +4026,7 @@
     }
 
     function editActiveLine(id) {
-      const line = ensureMonthLines(currentMonthKey()).find(entry => entry.id === id);
+      const line = ensureMonthLines().find(entry => entry.id === id);
       if (!line) return;
       editingLineId = id;
       const form = document.getElementById('activeLinesForm');
@@ -4032,6 +4041,27 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     window.editActiveLine = editActiveLine;
+
+    async function deleteActiveLine(id) {
+      const lines = ensureMonthLines();
+      const index = lines.findIndex(entry => entry.id === id);
+      if (index < 0) return;
+      if (!window.confirm('Deseja excluir esta linha ativa?')) return;
+      lines.splice(index, 1);
+      recalculateLinePercentages();
+      if (editingLineId === id) resetLineForm();
+      saveLocalCache();
+      render();
+      try {
+        await deleteLineRemote(id);
+        await syncMonthLinesRemote();
+        setSyncStatus('Linhas ativas sincronizadas com Supabase');
+      } catch (error) {
+        console.error(error);
+        setSyncStatus('Falha ao excluir linha no Supabase. Cache local mantido.');
+      }
+    }
+    window.deleteActiveLine = deleteActiveLine;
 
     function render() {
       ensureMonth(currentMonthKey());
@@ -4167,26 +4197,27 @@
     document.getElementById('closeModal').addEventListener('click', closeModal);
     document.getElementById('cancel').addEventListener('click', closeModal);
 
-    document.getElementById('resetMonth').addEventListener('click', async () => {
-      const label = monthLabel(currentMonthKey());
-      if (!window.confirm(`Deseja zerar todos os registros do mes ${label}?`)) return;
-      monthOverrides[currentMonthKey()] = {};
-      monthLines[currentMonthKey()] = [];
-      selectedId = null;
-      saveLocalCache();
-      render();
-      renderDiarista();
-      try {
-        await Promise.all([
-          resetRemoteMonth('internet_month_entries', currentMonthKey()),
-          resetRemoteMonth('internet_lines', currentMonthKey())
-        ]);
-        setSyncStatus(`Mes ${label} zerado no Supabase`);
-      } catch (error) {
-        console.error(error);
-        setSyncStatus(`Falha ao zerar ${label} no Supabase. Cache local mantido.`);
-      }
-    });
+    const resetMonthButton = document.getElementById('resetMonth');
+    if (resetMonthButton) {
+      resetMonthButton.addEventListener('click', async () => {
+        const label = monthLabel(currentMonthKey());
+        if (!window.confirm(`Deseja zerar todos os registros do mes ${label}?`)) return;
+        monthOverrides[currentMonthKey()] = {};
+        selectedId = null;
+        saveLocalCache();
+        render();
+        renderDiarista();
+        try {
+          await Promise.all([
+            resetRemoteMonth('internet_month_entries', currentMonthKey())
+          ]);
+          setSyncStatus(`Mes ${label} zerado no Supabase`);
+        } catch (error) {
+          console.error(error);
+          setSyncStatus(`Falha ao zerar ${label} no Supabase. Cache local mantido.`);
+        }
+      });
+    }
     document.getElementById('resetDiarista').addEventListener('click', async () => {
       const label = monthLabel(currentMonthKey());
       if (!window.confirm(`Deseja zerar os registros da diarista do mes ${label}?`)) return;
@@ -4341,7 +4372,7 @@
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
       const monthKey = currentMonthKey();
-      const lines = ensureMonthLines(monthKey);
+      const lines = ensureMonthLines();
       const line = {
         id: editingLineId || createId(),
         numero: formData.numeroLinha,
@@ -4356,16 +4387,16 @@
       } else {
         lines.push(line);
       }
-      recalculateLinePercentages(monthKey);
+      recalculateLinePercentages();
       resetLineForm();
       saveLocalCache();
       render();
       try {
-        await syncMonthLinesRemote(monthKey);
-        setSyncStatus(`Linhas do mes ${monthLabel(monthKey)} sincronizadas com Supabase`);
+        await syncMonthLinesRemote();
+        setSyncStatus(`Linhas ativas sincronizadas com Supabase`);
       } catch (error) {
         console.error(error);
-        setSyncStatus(`Falha ao sincronizar linhas de ${monthLabel(monthKey)}. Cache local mantido.`);
+        setSyncStatus(`Falha ao sincronizar linhas ativas. Cache local mantido.`);
       }
     });
 
