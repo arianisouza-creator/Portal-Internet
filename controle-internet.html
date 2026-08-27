@@ -226,6 +226,7 @@
   </style>
 </head>
 <body>
+  <datalist id="obrasDatalist"></datalist>
   <div class="utilitybar">
     <div class="uinner">
       <a class="utab" href="#">Identidade Visual</a>
@@ -515,7 +516,8 @@
           <div class="chead"><span class="ti2">Novo contrato</span><span class="eyebrow">Base mestre</span></div>
           <form id="contractForm" class="mini-form">
             <label>Empresa<input name="empresaContrato" required placeholder="Ex.: Vivo"></label>
-            <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede"></label>
+            <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede" list="obrasDatalist" autocomplete="off"></label>
+            <div class="helper" id="obraContratoHint" style="grid-column:1 / -1"></div>
             <label>Vencimento<input name="vencimentoContrato" type="number" min="1" max="31" required placeholder="Dia do mes"></label>
             <label>Numero do contrato<input name="numeroContrato" required placeholder="Ex.: 285704686"></label>
             <label>Status
@@ -637,7 +639,8 @@
             <section class="card pad">
               <div class="chead"><span class="ti2">Novo cadastro</span><span class="eyebrow">Base mestre</span></div>
               <form id="diaristaForm" class="mini-form">
-                <label>Obra<input name="obraDiarista" required placeholder="Ex.: FITESA"></label>
+                <label>Obra<input name="obraDiarista" required placeholder="Ex.: FITESA" list="obrasDatalist" autocomplete="off"></label>
+                <div class="helper" id="obraDiaristaHint" style="grid-column:1 / -1"></div>
                 <label>Nome<input name="nomeDiarista" required placeholder="Nome da diarista"></label>
                 <label>Status
                   <select name="statusDiarista">
@@ -1709,6 +1712,85 @@
     let editingCreditoId = null;
     let deletingPassagemKey = '';
 
+    // ------------------------------------------------------------------- //
+    // API de obras (Hub MSE, somente leitura). Vincula o campo "Obra" dos
+    // cadastros de contrato/diarista a uma obra real (id) e gera um link
+    // interno do portal a partir desse id.
+    // ------------------------------------------------------------------- //
+    const obrasConfig = portalConfig.obras || {};
+    const obrasApiToken = (obrasConfig.token || '').trim();
+    const obrasApiBaseUrl = (obrasConfig.baseUrl || 'https://portalmse.com.br/microservices/hub_mse/api_obra').trim().replace(/\/+$/, '');
+    let obrasCache = [];
+
+    async function loadObrasCache() {
+      if (!obrasApiToken || !obrasApiBaseUrl) return obrasCache;
+      try {
+        const response = await fetch(`${obrasApiBaseUrl}/v1/obras`, {
+          headers: { Authorization: `Bearer ${obrasApiToken}` }
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const json = await response.json();
+        obrasCache = Array.isArray(json.data) ? json.data : [];
+        const datalist = document.getElementById('obrasDatalist');
+        if (datalist) {
+          datalist.innerHTML = obrasCache.map(obra => `<option value="${(obra.nome || '').replace(/"/g, '&quot;')}">`).join('');
+        }
+      } catch (error) {
+        console.error('Falha ao carregar a API de obras (Hub MSE).', error);
+      }
+      return obrasCache;
+    }
+
+    function findObraByName(nome) {
+      const alvo = (nome || '').trim().toLowerCase();
+      if (!alvo) return null;
+      return obrasCache.find(obra => (obra.nome || '').trim().toLowerCase() === alvo) || null;
+    }
+
+    function buildObraLink(idObra) {
+      if (!idObra) return '';
+      try {
+        const url = new URL(window.location.href);
+        url.hash = '';
+        url.searchParams.set('obra_id', idObra);
+        return url.toString();
+      } catch (error) {
+        return `?obra_id=${encodeURIComponent(idObra)}`;
+      }
+    }
+
+    function updateObraHint(inputEl, hintEl) {
+      if (!inputEl || !hintEl) return;
+      const obra = findObraByName(inputEl.value);
+      if (obra) {
+        hintEl.innerHTML = `Vinculada a API de obras (id ${obra.id}). <a href="${buildObraLink(obra.id)}" target="_blank" rel="noopener">Ver link desta obra</a>`;
+      } else if (inputEl.value.trim()) {
+        hintEl.textContent = obrasApiToken
+          ? 'Obra nao encontrada na API de obras (sera salva como texto livre, sem link).'
+          : '';
+      } else {
+        hintEl.textContent = '';
+      }
+    }
+
+    function applyObraLinkFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const obraId = params.get('obra_id');
+      if (!obraId) return;
+      const idNum = Number(obraId);
+      const matchContract = contracts.find(item => Number(item.idObra) === idNum);
+      const matchDiarista = diaristaMasters.find(item => Number(item.idObra) === idNum);
+      const nome = (matchContract && matchContract.obra) || (matchDiarista && matchDiarista.obraDiarista) || '';
+      if (!nome) return;
+      const qInput = document.getElementById('q');
+      const dqInput = document.getElementById('dq');
+      if (qInput) qInput.value = nome;
+      if (dqInput) dqInput.value = nome;
+      render();
+      renderDiarista();
+      setSyncStatus(`Filtrando pela obra do link recebido: ${nome} (id ${idNum})`);
+    }
+
     function applyProjectBranding() {
       document.title = (projectConfig.browserTitle || 'MSE | Portal Internet').trim();
       const brandTitle = document.getElementById('brandTitle');
@@ -1886,6 +1968,8 @@
         id: Number(item.id),
         empresa: item.empresa || '',
         obra: item.obra || '',
+        idObra: item.idObra ?? item.id_obra ?? null,
+        obraLink: item.obraLink ?? item.obra_link ?? '',
         vencimento: item.vencimento != null ? String(item.vencimento) : '',
         numeroContrato: item.numeroContrato ?? item.numero_contrato ?? '',
         statusContrato: item.statusContrato ?? item.status_contrato ?? 'Ativo',
@@ -1924,6 +2008,8 @@
       diaristaMasters.splice(0, diaristaMasters.length, ...((payload.diaristaMasters || []).map(item => ({
         id: Number(item.id),
         obraDiarista: item.obraDiarista ?? item.obra_diarista ?? '',
+        idObra: item.idObra ?? item.id_obra ?? null,
+        obraLink: item.obraLink ?? item.obra_link ?? '',
         nomeDiarista: item.nomeDiarista ?? item.nome_diarista ?? '',
         statusDiarista: item.statusDiarista ?? item.status_diarista ?? 'Ativo',
         inicioDiarista: item.inicioDiarista ?? item.inicio_diarista ?? defaultMonth(),
@@ -2105,6 +2191,8 @@
           id: Number(contract.id),
           empresa: contract.empresa || '',
           obra: contract.obra || '',
+          id_obra: contract.idObra ?? null,
+          obra_link: contract.obraLink || '',
           vencimento: contract.vencimento || '',
           numero_contrato: contract.numeroContrato || '',
           status_contrato: contract.statusContrato || 'Ativo',
@@ -2175,6 +2263,8 @@
         body: [{
           id: Number(item.id),
           obra_diarista: item.obraDiarista || '',
+          id_obra: item.idObra ?? null,
+          obra_link: item.obraLink || '',
           nome_diarista: item.nomeDiarista || '',
           status_diarista: item.statusDiarista || 'Ativo',
           inicio_diarista: item.inicioDiarista || defaultMonth(),
@@ -2348,6 +2438,7 @@
         id: contract.id,
         status: override.status || 'Ativo',
         obra: contract.obra,
+        obraLink: contract.obraLink || '',
         empresa: contract.empresa,
         vencimento: contract.vencimento,
         contrato: contract.numeroContrato,
@@ -2374,6 +2465,7 @@
       return {
         id: item.id,
         obra: item.obraDiarista,
+        obraLink: item.obraLink || '',
         nome: item.nomeDiarista,
         pedido: override.pedido || '',
         valor: Object.prototype.hasOwnProperty.call(override, 'valor') ? override.valor : null,
@@ -2829,6 +2921,7 @@
       form.elements.fimContrato.value = contract.fimContrato || '';
       form.elements.contatoContrato.value = contract.contato || '';
       form.elements.obsContrato.value = contract.obsContrato || '';
+      updateObraHint(form.elements.obraContrato, document.getElementById('obraContratoHint'));
     }
 
     function renderTable(rows) {
@@ -2840,7 +2933,7 @@
       body.innerHTML = rows.map(row => `
         <tr>
           <td><span class="tag ${row.status === 'Ativo' ? 'ok' : row.status === 'Inativo' ? 'warn' : 'neutral'}"><span class="bullet"></span>${row.status}</span></td>
-          <td><b class="link">${row.obra || '-'}</b></td>
+          <td>${row.obraLink ? `<a class="link" href="${row.obraLink}" target="_blank" rel="noopener">${row.obra || '-'}</a>` : `<b class="link">${row.obra || '-'}</b>`}</td>
           <td><span class="company">${row.empresa || '-'}</span></td>
           <td><b style="color:#2d8b57">${row.vencimento || '-'}</b></td>
           <td>${row.contrato || '-'}</td>
@@ -2915,7 +3008,7 @@
       } else {
         body.innerHTML = rows.map(row => `
           <tr>
-            <td><b class="link">${row.obra || '-'}</b></td>
+            <td>${row.obraLink ? `<a class="link" href="${row.obraLink}" target="_blank" rel="noopener">${row.obra || '-'}</a>` : `<b class="link">${row.obra || '-'}</b>`}</td>
             <td><span class="company">${row.nome || '-'}</span></td>
             <td><span class="${!row.pedido ? 'pending' : ''}">${row.pedido || 'Pendente'}</span></td>
             <td><span class="${row.valor == null ? 'pending' : 'money'}">${row.valor != null ? brl(row.valor) : 'Pendente'}</span></td>
@@ -4016,6 +4109,7 @@
       form.elements.statusDiarista.value = item.statusDiarista || 'Ativo';
       form.elements.inicioDiarista.value = item.inicioDiarista || '';
       form.elements.fimDiarista.value = item.fimDiarista || '';
+      updateObraHint(form.elements.obraDiarista, document.getElementById('obraDiaristaHint'));
       switchModule('diarista');
       openDiaristaView('cadastro');
       refreshProtectedViews();
@@ -4258,10 +4352,14 @@
     document.getElementById('contractForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const existingContract = editingContractId ? contracts.find(item => item.id === editingContractId) : null;
+      const matchedObra = findObraByName(formData.obraContrato);
       const payload = {
         id: editingContractId || createId(),
         empresa: formData.empresaContrato,
         obra: formData.obraContrato,
+        idObra: matchedObra ? matchedObra.id : (existingContract ? existingContract.idObra ?? null : null),
+        obraLink: matchedObra ? buildObraLink(matchedObra.id) : (existingContract ? existingContract.obraLink || '' : ''),
         vencimento: formData.vencimentoContrato,
         numeroContrato: formData.numeroContrato,
         statusContrato: formData.statusContrato,
@@ -4293,9 +4391,13 @@
     document.getElementById('diaristaForm').addEventListener('submit', async event => {
       event.preventDefault();
       const formData = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const existingDiaristaMaster = editingDiaristaMasterId ? diaristaMasters.find(item => item.id === editingDiaristaMasterId) : null;
+      const matchedObraDiarista = findObraByName(formData.obraDiarista);
       const payload = {
         id: editingDiaristaMasterId || createId(),
         obraDiarista: formData.obraDiarista,
+        idObra: matchedObraDiarista ? matchedObraDiarista.id : (existingDiaristaMaster ? existingDiaristaMaster.idObra ?? null : null),
+        obraLink: matchedObraDiarista ? buildObraLink(matchedObraDiarista.id) : (existingDiaristaMaster ? existingDiaristaMaster.obraLink || '' : ''),
         nomeDiarista: formData.nomeDiarista,
         statusDiarista: formData.statusDiarista,
         inicioDiarista: formData.inicioDiarista,
@@ -4844,6 +4946,15 @@
         syncPassagensData().catch(error => console.error(error));
       }
       switchModule(defaultProjectModule);
+      applyObraLinkFromUrl();
+      const obraContratoInput = document.querySelector('#contractForm [name="obraContrato"]');
+      const obraDiaristaInput = document.querySelector('#diaristaForm [name="obraDiarista"]');
+      obraContratoInput?.addEventListener('input', () => updateObraHint(obraContratoInput, document.getElementById('obraContratoHint')));
+      obraDiaristaInput?.addEventListener('input', () => updateObraHint(obraDiaristaInput, document.getElementById('obraDiaristaHint')));
+      loadObrasCache().then(() => {
+        updateObraHint(obraContratoInput, document.getElementById('obraContratoHint'));
+        updateObraHint(obraDiaristaInput, document.getElementById('obraDiaristaHint'));
+      }).catch(error => console.error(error));
     }
 
     initializePortal();

@@ -97,9 +97,9 @@ DB_CONFIG = {
 TABLES: dict[str, dict] = {
     "internet_contracts": {
         "columns": [
-            "id", "empresa", "obra", "vencimento", "numero_contrato",
-            "status_contrato", "inicio_contrato", "fim_contrato", "contato",
-            "obs_contrato", "created_at",
+            "id", "empresa", "obra", "id_obra", "obra_link", "vencimento",
+            "numero_contrato", "status_contrato", "inicio_contrato",
+            "fim_contrato", "contato", "obs_contrato", "created_at",
         ],
         "json": [],
         "bool": [],
@@ -123,8 +123,8 @@ TABLES: dict[str, dict] = {
     },
     "diarista_cadastros": {
         "columns": [
-            "id", "obra_diarista", "nome_diarista", "status_diarista",
-            "inicio_diarista", "fim_diarista", "created_at",
+            "id", "obra_diarista", "id_obra", "obra_link", "nome_diarista",
+            "status_diarista", "inicio_diarista", "fim_diarista", "created_at",
         ],
         "json": [],
         "bool": [],
@@ -217,6 +217,16 @@ def load_portal_config() -> dict:
             "useApiOnly": True,
         },
         "passagensSeed": load_optional_json(PASSAGENS_SEED_FILE),
+        "obras": {
+            # API somente-leitura do Hub MSE (obras/contratos ativos da LMS/STI).
+            "baseUrl": _clean(
+                os.getenv(
+                    "OBRAS_API_BASE_URL",
+                    "https://portalmse.com.br/microservices/hub_mse/api_obra",
+                )
+            ),
+            "token": _clean(os.getenv("OBRAS_API_TOKEN", "")),
+        },
     }
 
 

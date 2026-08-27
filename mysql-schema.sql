@@ -133,4 +133,14 @@ CREATE TABLE IF NOT EXISTS passagens_creditos (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Migracao: vinculo com a API de obras do Hub MSE (somente leitura).
+-- Guarda o id da obra (conforme /v1/obras) e um link interno do proprio
+-- portal gerado a partir desse id, para as tabelas mestras que hoje tem
+-- um campo "obra" em texto livre. Seguro rodar de novo (checa antes de alterar).
+ALTER TABLE internet_contracts ADD COLUMN IF NOT EXISTS id_obra BIGINT NULL AFTER obra;
+ALTER TABLE internet_contracts ADD COLUMN IF NOT EXISTS obra_link TEXT NULL AFTER id_obra;
+
+ALTER TABLE diarista_cadastros ADD COLUMN IF NOT EXISTS id_obra BIGINT NULL AFTER obra_diarista;
+ALTER TABLE diarista_cadastros ADD COLUMN IF NOT EXISTS obra_link TEXT NULL AFTER id_obra;
+
 SET FOREIGN_KEY_CHECKS = 1;
