@@ -1879,6 +1879,32 @@
       return [...map.values()];
     }
 
+    function itemId(item = {}) {
+      return String(item.id || '');
+    }
+
+    function monthContractKey(item = {}) {
+      return `${item.month_key || item.monthKey || ''}:${item.contract_id || item.contractId || ''}`;
+    }
+
+    function monthDiaristaKey(item = {}) {
+      return `${item.month_key || item.monthKey || ''}:${item.diarista_id || item.diaristaId || ''}`;
+    }
+
+    function mergePortalPayload(localPayload = {}, remotePayload = {}, seedPayload = {}) {
+      return {
+        ...seedPayload,
+        ...remotePayload,
+        contracts: mergeByKey(localPayload.contracts || [], remotePayload.contracts || seedPayload.contracts || [], itemId),
+        monthEntries: mergeByKey(localPayload.monthEntries || [], remotePayload.monthEntries || seedPayload.monthEntries || [], monthContractKey),
+        monthLines: mergeByKey(localPayload.monthLines || [], remotePayload.monthLines || seedPayload.monthLines || [], item => `${item.month_key || item.monthKey || ''}:${item.id || ''}`),
+        diaristaMasters: mergeByKey(localPayload.diaristaMasters || [], remotePayload.diaristaMasters || seedPayload.diaristaMasters || [], itemId),
+        diaristaMonthEntries: mergeByKey(localPayload.diaristaMonthEntries || [], remotePayload.diaristaMonthEntries || seedPayload.diaristaMonthEntries || [], monthDiaristaKey),
+        hitachiCollaborators: mergeByKey(localPayload.hitachiCollaborators || [], remotePayload.hitachiCollaborators || seedPayload.hitachiCollaborators || [], itemId),
+        hitachiCompanyDocs: mergeByKey(localPayload.hitachiCompanyDocs || [], remotePayload.hitachiCompanyDocs || seedPayload.hitachiCompanyDocs || [], itemId)
+      };
+    }
+
     function mergePassagensPayload(localPayload = {}, remotePayload = {}, seedPayload = {}) {
       const seedRows = seedPayload.passagensRows || seedPayload.passagens_rows || [];
       const localRows = localPayload.passagensRows || localPayload.passagens_rows || [];
@@ -1893,8 +1919,7 @@
       const seededRemoteCredits = mergeByKey(remoteCredits, seedCredits, item => String(item.id || ''));
       const seededRemoteComplements = mergeByKey(remoteComplements, seedComplements, item => String(item.key || ''));
       return {
-        ...seedPayload,
-        ...remotePayload,
+        ...mergePortalPayload(localPayload, remotePayload, seedPayload),
         passagensRows: mergeByKey(localRows, seededRemoteRows, item => `${item.tabela || 'passagens'}:${item.id}`),
         passagensCreditos: mergeByKey(localCredits, seededRemoteCredits, item => String(item.id || '')),
         passagensComplements: mergeByKey(localComplements, seededRemoteComplements, item => String(item.key || '')),

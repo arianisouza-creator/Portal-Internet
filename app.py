@@ -174,6 +174,7 @@ TABLES: dict[str, dict] = {
 app = Flask(__name__)
 # alias usado por alguns servidores de produção (ex.: Elastic Beanstalk).
 application = app
+ACTUAL_TABLE_COLUMNS: dict[str, set[str]] = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -300,6 +301,18 @@ def _validate_table(table: str) -> dict:
     return meta
 
 
+def _actual_table_columns(db: pymysql.connections.Connection, table: str) -> set[str]:
+    cached = ACTUAL_TABLE_COLUMNS.get(table)
+    if cached is not None:
+        return cached
+    with db.cursor() as cur:
+        cur.execute(f"SHOW COLUMNS FROM `{table}`")
+        rows = cur.fetchall()
+    columns = {row["Field"] for row in rows}
+    ACTUAL_TABLE_COLUMNS[table] = columns
+    return columns
+
+
 def _build_order(table: str, order_param: str) -> str:
     meta = TABLES[table]
     parts = []
@@ -369,7 +382,8 @@ def rest(table: str):
 
     with db.cursor() as cur:
         for row in rows:
-            columns = [c for c in row.keys() if c in meta["columns"]]
+            existing_columns = _actual_table_columns(db, table)
+            columns = [c for c in row.keys() if c in meta["columns"] and c in existing_columns]
             if not columns:
                 abort(400, "Nenhuma coluna válida no corpo.")
             placeholders = ", ".join(["%s"] * len(columns))
