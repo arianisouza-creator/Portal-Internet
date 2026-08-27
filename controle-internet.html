@@ -226,7 +226,6 @@
   </style>
 </head>
 <body>
-  <datalist id="obrasDatalist"></datalist>
   <div class="utilitybar">
     <div class="uinner">
       <a class="utab" href="#">Identidade Visual</a>
@@ -516,7 +515,7 @@
           <div class="chead"><span class="ti2">Novo contrato</span><span class="eyebrow">Base mestre</span></div>
           <form id="contractForm" class="mini-form">
             <label>Empresa<input name="empresaContrato" required placeholder="Ex.: Vivo"></label>
-            <label>Obra<input name="obraContrato" required placeholder="Ex.: Sede" list="obrasDatalist" autocomplete="off"></label>
+            <label>Obra<select name="obraContrato" required><option value="">Selecionar obra...</option></select></label>
             <div class="helper" id="obraContratoHint" style="grid-column:1 / -1"></div>
             <label>Vencimento<input name="vencimentoContrato" type="number" min="1" max="31" required placeholder="Dia do mes"></label>
             <label>Numero do contrato<input name="numeroContrato" required placeholder="Ex.: 285704686"></label>
@@ -639,7 +638,7 @@
             <section class="card pad">
               <div class="chead"><span class="ti2">Novo cadastro</span><span class="eyebrow">Base mestre</span></div>
               <form id="diaristaForm" class="mini-form">
-                <label>Obra<input name="obraDiarista" required placeholder="Ex.: FITESA" list="obrasDatalist" autocomplete="off"></label>
+                <label>Obra<select name="obraDiarista" required><option value="">Selecionar obra...</option></select></label>
                 <div class="helper" id="obraDiaristaHint" style="grid-column:1 / -1"></div>
                 <label>Nome<input name="nomeDiarista" required placeholder="Nome da diarista"></label>
                 <label>Status
@@ -1731,10 +1730,6 @@
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const json = await response.json();
         obrasCache = Array.isArray(json.data) ? json.data : [];
-        const datalist = document.getElementById('obrasDatalist');
-        if (datalist) {
-          datalist.innerHTML = obrasCache.map(obra => `<option value="${(obra.nome || '').replace(/"/g, '&quot;')}">`).join('');
-        }
       } catch (error) {
         console.error('Falha ao carregar a API de obras (Hub MSE).', error);
       }
@@ -1745,6 +1740,30 @@
       const alvo = (nome || '').trim().toLowerCase();
       if (!alvo) return null;
       return obrasCache.find(obra => (obra.nome || '').trim().toLowerCase() === alvo) || null;
+    }
+
+    // Lista de obras selecionaveis: comeca pelas obras ativas da API e soma
+    // os nomes de obra ja usados nos cadastros locais (garante que o campo
+    // continue funcionando mesmo se a API estiver fora do ar ou nao cobrir
+    // ainda algum nome que ja usamos aqui).
+    function mergedObraNames(existingNames) {
+      const set = new Set();
+      obrasCache.forEach(obra => { if (obra.nome) set.add(String(obra.nome).trim()); });
+      (existingNames || []).forEach(nome => { if (nome) set.add(String(nome).trim()); });
+      return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+
+    function populateObraSelect(selectEl, existingNames, currentValue) {
+      if (!selectEl) return;
+      const value = (currentValue || '').trim();
+      const names = mergedObraNames(existingNames);
+      if (value && !names.includes(value)) {
+        names.push(value);
+        names.sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      }
+      selectEl.innerHTML = '<option value="">Selecionar obra...</option>' +
+        names.map(nome => `<option value="${nome.replace(/"/g, '&quot;')}">${nome}</option>`).join('');
+      selectEl.value = value;
     }
 
     function buildObraLink(idObra) {
@@ -1766,7 +1785,7 @@
         hintEl.innerHTML = `Vinculada a API de obras (id ${obra.id}). <a href="${buildObraLink(obra.id)}" target="_blank" rel="noopener">Ver link desta obra</a>`;
       } else if (inputEl.value.trim()) {
         hintEl.textContent = obrasApiToken
-          ? 'Obra nao encontrada na API de obras (sera salva como texto livre, sem link).'
+          ? 'Obra fora da lista atual da API de obras (sera salva sem link).'
           : '';
       } else {
         hintEl.textContent = '';
@@ -2913,7 +2932,7 @@
     function fillContractForm(contract) {
       const form = document.getElementById('contractForm');
       form.elements.empresaContrato.value = contract.empresa || '';
-      form.elements.obraContrato.value = contract.obra || '';
+      populateObraSelect(form.elements.obraContrato, contracts.map(item => item.obra), contract.obra || '');
       form.elements.vencimentoContrato.value = contract.vencimento || '';
       form.elements.numeroContrato.value = contract.numeroContrato || '';
       form.elements.statusContrato.value = contract.statusContrato || 'Ativo';
@@ -4104,7 +4123,7 @@
       if (!item) return;
       editingDiaristaMasterId = id;
       const form = document.getElementById('diaristaForm');
-      form.elements.obraDiarista.value = item.obraDiarista || '';
+      populateObraSelect(form.elements.obraDiarista, diaristaMasters.map(entry => entry.obraDiarista), item.obraDiarista || '');
       form.elements.nomeDiarista.value = item.nomeDiarista || '';
       form.elements.statusDiarista.value = item.statusDiarista || 'Ativo';
       form.elements.inicioDiarista.value = item.inicioDiarista || '';
@@ -4376,6 +4395,7 @@
       }
       editingContractId = null;
       event.currentTarget.reset();
+      populateObraSelect(event.currentTarget.elements.obraContrato, contracts.map(item => item.obra), '');
       saveLocalCache();
       renderContracts();
       render();
@@ -4411,6 +4431,7 @@
       }
       editingDiaristaMasterId = null;
       event.currentTarget.reset();
+      populateObraSelect(event.currentTarget.elements.obraDiarista, diaristaMasters.map(entry => entry.obraDiarista), '');
       saveLocalCache();
       renderDiarista();
       try {
@@ -4949,9 +4970,13 @@
       applyObraLinkFromUrl();
       const obraContratoInput = document.querySelector('#contractForm [name="obraContrato"]');
       const obraDiaristaInput = document.querySelector('#diaristaForm [name="obraDiarista"]');
-      obraContratoInput?.addEventListener('input', () => updateObraHint(obraContratoInput, document.getElementById('obraContratoHint')));
-      obraDiaristaInput?.addEventListener('input', () => updateObraHint(obraDiaristaInput, document.getElementById('obraDiaristaHint')));
+      populateObraSelect(obraContratoInput, contracts.map(item => item.obra), '');
+      populateObraSelect(obraDiaristaInput, diaristaMasters.map(entry => entry.obraDiarista), '');
+      obraContratoInput?.addEventListener('change', () => updateObraHint(obraContratoInput, document.getElementById('obraContratoHint')));
+      obraDiaristaInput?.addEventListener('change', () => updateObraHint(obraDiaristaInput, document.getElementById('obraDiaristaHint')));
       loadObrasCache().then(() => {
+        populateObraSelect(obraContratoInput, contracts.map(item => item.obra), obraContratoInput ? obraContratoInput.value : '');
+        populateObraSelect(obraDiaristaInput, diaristaMasters.map(entry => entry.obraDiarista), obraDiaristaInput ? obraDiaristaInput.value : '');
         updateObraHint(obraContratoInput, document.getElementById('obraContratoHint'));
         updateObraHint(obraDiaristaInput, document.getElementById('obraDiaristaHint'));
       }).catch(error => console.error(error));
