@@ -175,6 +175,7 @@ app = Flask(__name__)
 # alias usado por alguns servidores de produção (ex.: Elastic Beanstalk).
 application = app
 ACTUAL_TABLE_COLUMNS: dict[str, set[str]] = {}
+SCHEMA_CHECKED = False
 
 
 # --------------------------------------------------------------------------- #
@@ -183,6 +184,7 @@ ACTUAL_TABLE_COLUMNS: dict[str, set[str]] = {}
 def get_db() -> pymysql.connections.Connection:
     if "db" not in g:
         g.db = pymysql.connect(**DB_CONFIG)
+        ensure_schema(g.db)
     return g.db
 
 
@@ -299,6 +301,30 @@ def _validate_table(table: str) -> dict:
     if meta is None:
         abort(404, f"Tabela desconhecida: {table}")
     return meta
+
+
+def ensure_schema(db: pymysql.connections.Connection) -> None:
+    global SCHEMA_CHECKED
+    if SCHEMA_CHECKED:
+        return
+    migrations = {
+        "internet_contracts": [
+            ("id_obra", "ADD COLUMN `id_obra` BIGINT NULL AFTER `obra`"),
+            ("obra_link", "ADD COLUMN `obra_link` TEXT NULL AFTER `id_obra`"),
+        ],
+        "diarista_cadastros": [
+            ("id_obra", "ADD COLUMN `id_obra` BIGINT NULL AFTER `obra_diarista`"),
+            ("obra_link", "ADD COLUMN `obra_link` TEXT NULL AFTER `id_obra`"),
+        ],
+    }
+    with db.cursor() as cur:
+        for table, columns in migrations.items():
+            existing = _actual_table_columns(db, table)
+            for column, statement in columns:
+                if column not in existing:
+                    cur.execute(f"ALTER TABLE `{table}` {statement}")
+                    ACTUAL_TABLE_COLUMNS.pop(table, None)
+    SCHEMA_CHECKED = True
 
 
 def _actual_table_columns(db: pymysql.connections.Connection, table: str) -> set[str]:
