@@ -1720,6 +1720,11 @@
     const obrasApiToken = (obrasConfig.token || '').trim();
     const obrasApiBaseUrl = (obrasConfig.baseUrl || 'https://portalmse.com.br/microservices/hub_mse/api_obra').trim().replace(/\/+$/, '');
     let obrasCache = [];
+    // Quando um link "Ver link desta obra" é aberto (?obra_id=...), este filtro
+    // guarda o id exato da obra clicada. Antes, o link caía numa busca por
+    // texto (substring) que deixava passar registros de outras obras com
+    // nome parecido; agora a tabela mostra só os registros com esse id_obra.
+    let activeObraIdFilter = null;
 
     async function loadObrasCache() {
       if (!obrasApiToken || !obrasApiBaseUrl) return obrasCache;
@@ -1739,7 +1744,20 @@
     function findObraByName(nome) {
       const alvo = (nome || '').trim().toLowerCase();
       if (!alvo) return null;
-      return obrasCache.find(obra => (obra.nome || '').trim().toLowerCase() === alvo) || null;
+      const matches = obrasCache.filter(obra => (obra.nome || '').trim().toLowerCase() === alvo);
+      if (matches.length > 1) {
+        // Duas ou mais obras na API com o mesmo nome: sem um segundo campo pra
+        // desempatar (CNPJ, cliente etc.), ficamos com a primeira e avisamos —
+        // é o cenário mais provável de "linkar com a obra errada".
+        console.warn(`Nome de obra ambíguo: "${nome}" bate com ${matches.length} obras na API (ids ${matches.map(m => m.id).join(', ')}). Vinculando à primeira (id ${matches[0].id}).`);
+      }
+      return matches[0] || null;
+    }
+
+    function findObraMatches(nome) {
+      const alvo = (nome || '').trim().toLowerCase();
+      if (!alvo) return [];
+      return obrasCache.filter(obra => (obra.nome || '').trim().toLowerCase() === alvo);
     }
 
     // Lista de obras selecionaveis: comeca pelas obras ativas da API e soma
@@ -1780,8 +1798,11 @@
 
     function updateObraHint(inputEl, hintEl) {
       if (!inputEl || !hintEl) return;
-      const obra = findObraByName(inputEl.value);
-      if (obra) {
+      const matches = findObraMatches(inputEl.value);
+      const obra = matches[0] || null;
+      if (matches.length > 1) {
+        hintEl.innerHTML = `⚠️ ${matches.length} obras na API têm esse mesmo nome (ids ${matches.map(m => m.id).join(', ')}). Vinculando à id ${obra.id} — confira se é a obra certa antes de salvar.`;
+      } else if (obra) {
         hintEl.innerHTML = `Vinculada a API de obras (id ${obra.id}). <a href="${buildObraLink(obra.id)}" target="_blank" rel="noopener">Ver link desta obra</a>`;
       } else if (inputEl.value.trim()) {
         hintEl.textContent = obrasApiToken
@@ -1797,17 +1818,23 @@
       const obraId = params.get('obra_id');
       if (!obraId) return;
       const idNum = Number(obraId);
+      if (!Number.isFinite(idNum)) return;
       const matchContract = contracts.find(item => Number(item.idObra) === idNum);
       const matchDiarista = diaristaMasters.find(item => Number(item.idObra) === idNum);
       const nome = (matchContract && matchContract.obra) || (matchDiarista && matchDiarista.obraDiarista) || '';
-      if (!nome) return;
+      // Filtra pelo id exato da obra, não mais por texto solto: um filtro por
+      // nome (substring) deixava passar registros de outras obras cujo nome,
+      // pedido ou observação continha o mesmo pedaço de texto.
+      activeObraIdFilter = idNum;
       const qInput = document.getElementById('q');
       const dqInput = document.getElementById('dq');
-      if (qInput) qInput.value = nome;
-      if (dqInput) dqInput.value = nome;
+      if (qInput) qInput.value = '';
+      if (dqInput) dqInput.value = '';
       render();
       renderDiarista();
-      setSyncStatus(`Filtrando pela obra do link recebido: ${nome} (id ${idNum})`);
+      setSyncStatus(nome
+        ? `Filtrando pela obra do link recebido: ${nome} (id ${idNum})`
+        : `Filtrando pelo id de obra ${idNum} do link recebido (nenhum registro vinculado a essa obra ainda).`);
     }
 
     function applyProjectBranding() {
@@ -2711,8 +2738,9 @@
       const rows = currentData();
       const q = norm(document.getElementById('q').value);
       return rows.filter(row => {
-        const hay = norm([row.status, row.obra, row.empresa, row.contrato, row.contato, row.pedido, row.obs].join(' '));
-        const queryOk = !q || hay.includes(q);
+        const queryOk = activeObraIdFilter != null
+          ? Number(row.idObra) === activeObraIdFilter
+          : (!q || norm([row.status, row.obra, row.empresa, row.contrato, row.contato, row.pedido, row.obs].join(' ')).includes(q));
         const filterOk =
           filter === 'todos' ||
           (filter === 'ativos' && row.status === 'Ativo') ||
@@ -3021,6 +3049,7 @@
 
     function renderDiarista() {
       const rows = currentDiaristaData().filter(row => {
+        if (activeObraIdFilter != null) return Number(row.idObra) === activeObraIdFilter;
         const q = norm(document.getElementById('dq').value);
         if (!q) return true;
         return norm([row.obra, row.nome, row.pedido, row.link].join(' ')).includes(q);
@@ -4255,7 +4284,7 @@
     }
     window.togglePassword = togglePassword;
 
-    document.getElementById('q').addEventListener('input', render);
+    document.getElementById('q').addEventListener('input', () => { activeObraIdFilter = null; render(); });
     monthPicker.addEventListener('change', () => {
       selectedId = null;
       render();
@@ -4273,7 +4302,7 @@
       render();
       renderDiarista();
     });
-    document.getElementById('dq').addEventListener('input', renderDiarista);
+    document.getElementById('dq').addEventListener('input', () => { activeObraIdFilter = null; renderDiarista(); });
     document.getElementById('hq').addEventListener('input', renderHitachi);
     document.getElementById('pq').addEventListener('input', renderPassagens);
     [pAirStart, pAirEnd, pRoadStart, pRoadEnd].forEach(input => input.addEventListener('change', renderPassagens));
