@@ -2509,6 +2509,7 @@
         id: contract.id,
         status: override.status || 'Ativo',
         obra: contract.obra,
+        idObra: contract.idObra ?? null,
         obraLink: contract.obraLink || '',
         empresa: contract.empresa,
         vencimento: contract.vencimento,
@@ -2536,6 +2537,7 @@
       return {
         id: item.id,
         obra: item.obraDiarista,
+        idObra: item.idObra ?? null,
         obraLink: item.obraLink || '',
         nome: item.nomeDiarista,
         pedido: override.pedido || '',
