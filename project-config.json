@@ -6,5 +6,5 @@
   "brandSubtitle": "Controle administrativo - operacao mensal",
   "greeting": "Boa tarde. Bem-vinda ao Portal Internet.",
   "defaultModule": "internet",
-  "enabledModules": ["internet"]
+  "enabledModules": ["internet", "cartao"]
 }

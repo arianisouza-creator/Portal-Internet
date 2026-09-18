@@ -133,6 +133,23 @@ CREATE TABLE IF NOT EXISTS passagens_creditos (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Modulo Fechamento de cartao (adicionado junto com o layout novo): historico
+-- de fechamentos confirmados ("Conferencia OK") e rascunhos de fatura em
+-- andamento. Mesmo padrao de passagens_creditos - um JSON por linha.
+CREATE TABLE IF NOT EXISTS passagens_fechamentos_fatura (
+  id VARCHAR(191) NOT NULL,
+  `data` JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS passagens_fatura_rascunhos (
+  id VARCHAR(191) NOT NULL,
+  `data` JSON NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Migracao: vinculo com a API de obras do Hub MSE (somente leitura).
 -- Guarda o id da obra (conforme /v1/obras) e um link interno do proprio
 -- portal gerado a partir desse id, para as tabelas mestras que hoje tem
